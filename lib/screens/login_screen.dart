@@ -6,7 +6,6 @@ import '../services/data_service.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
-
 /// หน้า Login (3.4.3) - เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน (ตรวจสอบกับ SQLite จริง)
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _loading = false;
   bool _obscure = true;
+  bool _googleLoading = false;
 
   Future<void> _handleLogin() async {
     if (_loading) return;
@@ -45,10 +45,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    if (_googleLoading) return;
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+    });
+
+    final service = context.read<DataService>();
+    final error = await service.loginWithGoogle();
+
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } else {
+      setState(() {
+        _googleLoading = false;
+        _error = error;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<DataService>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -59,12 +83,12 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const HeaderIconBadge(icon: Icons.account_balance_wallet_rounded),
                 const SizedBox(height: 20),
-                const Text('BUDGETMATE',
+                Text(service.t('app_name'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: AppColors.textPrimary)),
                 const SizedBox(height: 6),
-                Text('เข้าสู่ระบบเพื่อจัดการเงินของคุณ',
+                Text(service.t('login_subtitle'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
                 const SizedBox(height: 28),
@@ -74,12 +98,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: AppColors.ink,
+                          color: AppColors.accentDeep,
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
-                        child: const Text('เข้าสู่ระบบ',
+                        child: Text(service.t('login'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -95,10 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: AppColors.surface,
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
-                          child: Text('สมัครสมาชิก',
+                          child: Text(service.t('register'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+                                  color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                         ),
                       ),
                     ),
@@ -107,14 +131,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 24),
                 AppTextField(
                   controller: _emailCtrl,
-                  hint: 'Email',
+                  hint: service.t('email_hint'),
                   icon: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 14),
                 AppTextField(
                   controller: _passCtrl,
-                  hint: 'Password',
+                  hint: service.t('password_hint'),
                   icon: Icons.lock_outline_rounded,
                   obscureText: _obscure,
                   toggleObscure: () => setState(() => _obscure = !_obscure),
@@ -125,17 +149,48 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 const SizedBox(height: 22),
                 PrimaryButton(
-                  label: 'Sign In',
+                  label: service.t('sign_in'),
                   loading: _loading,
                   onPressed: _handleLogin,
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: AppColors.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text('หรือ', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+                    ),
+                    Expanded(child: Divider(color: AppColors.border)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    ),
+                    onPressed: _googleLoading ? null : _handleGoogleLogin,
+                    icon: _googleLoading
+                        ? SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                        : Image.asset('assets/images/google_logo.png', height: 20, width: 20),
+                    label: Text('เข้าสู่ระบบด้วย Google',
+                        style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Center(
                   child: TextButton(
                     onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
-                    child: Text('Forgot password?',
-                        style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                    child: Text(service.t('forgot_password_q'),
+                        style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],

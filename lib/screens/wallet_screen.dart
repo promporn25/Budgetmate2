@@ -15,12 +15,13 @@ class WalletScreen extends StatelessWidget {
     final service = context.watch<DataService>();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Wallet', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('wallet_title'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -29,7 +30,7 @@ class WalletScreen extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              color: AppColors.ink,
+              color: AppColors.accentDeep,
               borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Column(
@@ -47,8 +48,8 @@ class WalletScreen extends StatelessWidget {
                           color: Colors.white, size: 18),
                     ),
                     const SizedBox(width: 10),
-                    const Text('BUDGETMATE WALLET',
-                        style: TextStyle(
+                    Text(service.t('wallet_header'),
+                        style: const TextStyle(
                             color: Colors.white70,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
@@ -56,7 +57,7 @@ class WalletScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 18),
-                const Text('ยอดคงเหลือรวม', style: TextStyle(color: Colors.white70)),
+                Text(service.t('total_balance'), style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 6),
                 Text('฿${service.balance.toStringAsFixed(2)}',
                     style: const TextStyle(
@@ -73,20 +74,20 @@ class WalletScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
-                      child: Text('Income/Expense',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    Expanded(
+                      child: Text(service.t('income_expense'),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
                     ),
-                    Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                    Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
                   ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
-                        child: _miniStat('รายรับ', service.totalIncome, AppColors.income)),
+                        child: _miniStat(service.t('income'), service.totalIncome, AppColors.income)),
                     Expanded(
-                        child: _miniStat('รายจ่าย', service.totalExpense, AppColors.expense)),
+                        child: _miniStat(service.t('expense'), service.totalExpense, AppColors.expense)),
                   ],
                 ),
               ],
@@ -101,25 +102,25 @@ class WalletScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: AppColors.accentBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.savings_rounded, color: Colors.orange.shade700),
+                  child: Icon(Icons.savings_rounded, color: AppColors.ink),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Goal Saving',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text(service.t('goal_saving'),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
                       const SizedBox(height: 4),
-                      Text('${service.goals.length} เป้าหมายที่กำลังดำเนินการ',
+                      Text('${service.goals.length} ${service.t('goals_in_progress')}',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
               ],
             ),
           ),

@@ -19,12 +19,13 @@ class AccountSettingScreen extends StatelessWidget {
     final user = service.currentUser;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Account Setting', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('account_setting_title'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -40,7 +41,7 @@ class AccountSettingScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(user?.name ?? '-',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                       const SizedBox(height: 2),
                       Text(user?.email ?? '-',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
@@ -51,32 +52,32 @@ class AccountSettingScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _sectionLabel('Account'),
-          _tile(context, 'Manage Profile',
+          _sectionLabel(service.t('account_section')),
+          _tile(context, service.t('manage_profile'),
               icon: Icons.badge_outlined, onTap: () => _editNameDialog(context, service)),
-          _tile(context, 'Password & Security',
+          _tile(context, service.t('password_security'),
               icon: Icons.lock_outline_rounded,
               onTap: () => Navigator.push(
                   context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()))),
-          _tile(context, 'Language',
+          _tile(context, service.t('language'),
               icon: Icons.language_rounded,
               trailing: user?.language ?? 'ไทย',
               onTap: () => _languageDialog(context, service)),
           const SizedBox(height: 20),
-          _sectionLabel('Preferences'),
-          _tile(context, 'About Us',
-              icon: Icons.info_outline_rounded, onTap: () => _aboutDialog(context)),
+          _sectionLabel(service.t('preferences_section')),
+          _tile(context, service.t('about_us'),
+              icon: Icons.info_outline_rounded, onTap: () => _aboutDialog(context, service)),
           _switchTile(
-            title: 'Theme',
+            title: service.t('theme'),
             icon: Icons.dark_mode_outlined,
-            subtitle: service.themeMode == ThemeMode.dark ? 'Dark' : 'Light',
+            subtitle: service.themeMode == ThemeMode.dark ? service.t('theme_dark') : service.t('theme_light'),
             value: service.themeMode == ThemeMode.dark,
             onChanged: (_) => service.toggleTheme(),
           ),
           _switchTile(
-            title: 'Success Notes',
+            title: service.t('success_notes'),
             icon: Icons.notifications_outlined,
-            subtitle: service.successNotesEnabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+            subtitle: service.successNotesEnabled ? service.t('enabled') : service.t('disabled'),
             value: service.successNotesEnabled,
             onChanged: (_) => service.toggleSuccessNotes(),
           ),
@@ -87,7 +88,7 @@ class AccountSettingScreen extends StatelessWidget {
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.danger,
-                side: BorderSide(color: Colors.red.shade200),
+                side: BorderSide(color: AppColors.danger.withOpacity(0.4)),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppRadius.md)),
               ),
@@ -99,7 +100,7 @@ class AccountSettingScreen extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                     (route) => false);
               },
-              child: const Text('Log out', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(service.t('logout'), style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: 40),
@@ -123,11 +124,11 @@ class AccountSettingScreen extends StatelessWidget {
         onTap: onTap,
         child: ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: icon != null ? Icon(icon, color: Colors.grey.shade600, size: 21) : null,
-          title: Text(title, style: const TextStyle(fontSize: 14.5)),
+          leading: icon != null ? Icon(icon, color: AppColors.textSecondary, size: 21) : null,
+          title: Text(title, style: TextStyle(fontSize: 14.5, color: AppColors.textPrimary)),
           trailing: trailing != null
-              ? Text(trailing, style: TextStyle(color: Colors.grey.shade500, fontSize: 13))
-              : Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+              ? Text(trailing, style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
+              : Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
         ),
       ),
     );
@@ -146,12 +147,12 @@ class AccountSettingScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         child: ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: Colors.grey.shade600, size: 21),
-          title: Text(title, style: const TextStyle(fontSize: 14.5)),
-          subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 12.5)),
+          leading: Icon(icon, color: AppColors.textSecondary, size: 21),
+          title: Text(title, style: TextStyle(fontSize: 14.5, color: AppColors.textPrimary)),
+          subtitle: Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
           trailing: Switch(
             value: value,
-            activeColor: Colors.orange,
+            activeColor: AppColors.ink,
             onChanged: onChanged,
           ),
         ),
@@ -172,7 +173,7 @@ class AccountSettingScreen extends StatelessWidget {
             Future<void> save() async {
               final name = ctrl.text.trim();
               if (name.isEmpty) {
-                setState(() => errorText = 'กรุณากรอกชื่อผู้ใช้');
+                setState(() => errorText = service.t('enter_username'));
                 return;
               }
               setState(() {
@@ -184,7 +185,7 @@ class AccountSettingScreen extends StatelessWidget {
             }
 
             return Dialog(
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.bg,
               insetPadding: const EdgeInsets.symmetric(horizontal: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
               child: Padding(
@@ -199,31 +200,31 @@ class AccountSettingScreen extends StatelessWidget {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
+                            color: AppColors.accentBg,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(Icons.badge_outlined, color: Colors.orange.shade700, size: 22),
+                          child: Icon(Icons.badge_outlined, color: AppColors.ink, size: 22),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text('แก้ไขชื่อผู้ใช้',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Expanded(
+                          child: Text(service.t('edit_username'),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                         ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           onPressed: saving ? null : () => Navigator.pop(dialogContext),
                           icon: const Icon(Icons.close_rounded, size: 20),
-                          color: Colors.grey.shade500,
+                          color: AppColors.textSecondary,
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text('ชื่อที่แสดง',
-                        style: AppTextStyles.label.copyWith(color: Colors.grey.shade700)),
+                    Text(service.t('display_name'),
+                        style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
                     const SizedBox(height: 8),
                     AppTextField(
                       controller: ctrl,
-                      hint: 'ชื่อผู้ใช้',
+                      hint: service.t('username_hint'),
                       icon: Icons.person_outline_rounded,
                       autofocus: true,
                       errorText: errorText,
@@ -243,9 +244,9 @@ class AccountSettingScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(AppRadius.md)),
                             ),
                             onPressed: saving ? null : () => Navigator.pop(dialogContext),
-                            child: const Text('ยกเลิก',
+                            child: Text(service.t('cancel'),
                                 style:
-                                    TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                                    TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -259,12 +260,12 @@ class AccountSettingScreen extends StatelessWidget {
                             ),
                             onPressed: saving ? null : save,
                             child: saving
-                                ? const SizedBox(
+                                ? SizedBox(
                                     height: 16,
                                     width: 16,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white))
-                                : const Text('บันทึก', style: TextStyle(fontWeight: FontWeight.w600)),
+                                        strokeWidth: 2, color: AppColors.inkOn))
+                                : Text(service.t('save_action'), style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.inkOn)),
                           ),
                         ),
                       ],
@@ -280,46 +281,115 @@ class AccountSettingScreen extends StatelessWidget {
   }
 
   void _languageDialog(BuildContext context, DataService service) {
+    const flags = {'ไทย': '🇹🇭', 'English': '🇬🇧'};
+
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-        title: const Text('เลือกภาษา'),
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _languageOptions.map((lang) {
-            final selected = (service.currentUser?.language ?? 'ไทย') == lang;
-            return ListTile(
-              title: Text(lang),
-              trailing: selected
-                  ? Icon(Icons.check_circle_rounded, color: Colors.orange.shade700)
-                  : null,
-              onTap: () async {
-                await service.updateProfile(language: lang);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-            );
-          }).toList(),
-        ),
-      ),
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: AppColors.bg,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.language_rounded, color: AppColors.ink, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(service.t('choose_language'),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ..._languageOptions.map((lang) {
+                  final selected = (service.currentUser?.language ?? 'ไทย') == lang;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Material(
+                      color: selected ? AppColors.accentBg : AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        onTap: () async {
+                          await service.setLanguage(lang);
+                          if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                              color: selected ? AppColors.ink : AppColors.border,
+                              width: selected ? 1.4 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(flags[lang] ?? '🏳️', style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(lang,
+                                    style: TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                                        color: selected ? AppColors.ink : AppColors.textPrimary)),
+                              ),
+                              if (selected)
+                                Icon(Icons.check_circle_rounded,
+                                    color: AppColors.ink, size: 20)
+                              else
+                                Icon(Icons.circle_outlined,
+                                    color: AppColors.border, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  void _aboutDialog(BuildContext context) {
+  void _aboutDialog(BuildContext context, DataService service) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.bg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-        title: const Text('About BUDGETMATE'),
-        content: const Text(
-          'BUDGETMATE คือแอปช่วยจัดการรายรับ-รายจ่ายและเป้าหมายการออมเงินส่วนตัว '
-          'พัฒนาโดยนิสิตคณะวิศวกรรมศาสตร์ มหาวิทยาลัยเกษตรศาสตร์\n\nเวอร์ชัน 1.0.0',
-          style: TextStyle(height: 1.5),
+        title: Text(service.t('about_title'), style: TextStyle(color: AppColors.textPrimary)),
+        content: Text(
+          service.t('about_body'),
+          style: TextStyle(height: 1.5, color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dialogContext), child: const Text('ปิด')),
+              onPressed: () => Navigator.pop(dialogContext), child: Text(service.t('close'))),
         ],
       ),
     );
@@ -343,19 +413,19 @@ class _AvatarPicker extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: Colors.orange.shade50,
+            backgroundColor: AppColors.accentBg,
             backgroundImage: hasImage ? FileImage(File(path)) : null,
             child: hasImage
                 ? null
-                : Icon(Icons.person, size: 28, color: Colors.orange.shade700),
+                : Icon(Icons.person, size: 28, color: AppColors.ink),
           ),
           Positioned(
             bottom: -2,
             right: -2,
             child: Container(
               padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: AppColors.ink,
+              decoration: BoxDecoration(
+                color: AppColors.accentDeep,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
@@ -369,7 +439,7 @@ class _AvatarPicker extends StatelessWidget {
   void _showPickerSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
@@ -386,21 +456,21 @@ class _AvatarPicker extends StatelessWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: AppColors.border,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined),
-                  title: const Text('ถ่ายรูปใหม่'),
+                  leading: Icon(Icons.photo_camera_outlined, color: AppColors.textPrimary),
+                  title: Text(service.t('take_photo'), style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
                     Navigator.pop(sheetContext);
                     await service.pickAvatar(fromCamera: true);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('เลือกจากคลังภาพ'),
+                  leading: Icon(Icons.photo_library_outlined, color: AppColors.textPrimary),
+                  title: Text(service.t('choose_from_gallery'), style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
                     Navigator.pop(sheetContext);
                     await service.pickAvatar(fromCamera: false);
@@ -409,7 +479,7 @@ class _AvatarPicker extends StatelessWidget {
                 if (hasImage)
                   ListTile(
                     leading: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
-                    title: Text('ลบรูปโปรไฟล์', style: TextStyle(color: AppColors.danger)),
+                    title: Text(service.t('remove_photo'), style: TextStyle(color: AppColors.danger)),
                     onTap: () async {
                       Navigator.pop(sheetContext);
                       await service.removeAvatar();

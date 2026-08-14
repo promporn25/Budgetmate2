@@ -1,39 +1,73 @@
 import 'package:budgetmate/screens/app_theme.dart';
+import 'package:budgetmate/screens/goal_saving_screen.dart';
+import 'package:budgetmate/screens/wallet_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/data_service.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/period_selector.dart';
 import 'history_screen.dart';
 
 const List<String> _thaiMonthsShort = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
 ];
+const List<String> _enMonthsShort = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
 
 /// หน้า Home (3.4.6) - แสดงภาพรวมทางการเงินของผู้ใช้งาน
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  ChartPeriod _period = ChartPeriod.month;
+  DateTime _anchor = DateTime.now();
+
+  List<MapEntry<String, double>> _expenseSeries(DataService service) {
+    final isThai = service.currentLanguage != 'English';
+    switch (_period) {
+      case ChartPeriod.day:
+        final data = service.dailySummary(days: 7, endDate: _anchor);
+        return data
+            .map((e) => MapEntry('${e.key.day}/${e.key.month}', e.value['expense'] ?? 0))
+            .toList();
+      case ChartPeriod.month:
+        final data = service.monthlySummary(months: 6, endMonth: _anchor);
+        final months = isThai ? _thaiMonthsShort : _enMonthsShort;
+        return data
+            .map((e) => MapEntry(months[e.key.month - 1], e.value['expense'] ?? 0))
+            .toList();
+      case ChartPeriod.year:
+        final data = service.yearlySummary(years: 5, endYear: _anchor.year);
+        return data.map((e) => MapEntry('${e.key}', e.value['expense'] ?? 0)).toList();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final service = context.watch<DataService>();
-    final summary = service.monthlySummary(months: 6);
-    final maxVal = summary
-        .map((e) => e.value['expense'] ?? 0)
-        .fold<double>(0, (a, b) => a > b ? a : b);
+    final series = _expenseSeries(service);
+    final maxVal = series.map((e) => e.value).fold<double>(0, (a, b) => a > b ? a : b);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: Text('สวัสดี, ${service.currentUser?.name ?? 'ผู้ใช้งาน'}',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(
+            '${service.t('greeting')}, ${service.currentUser?.name ?? service.t('default_user')}',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: AppColors.textPrimary)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded),
+            icon: Icon(Icons.history_rounded, color: AppColors.textPrimary),
             onPressed: () => Navigator.push(
                 context, MaterialPageRoute(builder: (_) => const HistoryScreen())),
           )
@@ -44,39 +78,15 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                    child: _summaryCard('รายรับรวม', service.totalIncome,
-                        AppColors.incomeBg, AppColors.income, Icons.arrow_downward_rounded)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _summaryCard('รายจ่ายรวม', service.totalExpense,
-                        AppColors.expenseBg, AppColors.expense, Icons.arrow_upward_rounded)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.ink,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('คงเหลือสุทธิ',
-                      style: TextStyle(color: Colors.white70, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  Text('฿${service.balance.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
             const SizedBox(height: 28),
-            const Text('Total Expenses (6 เดือนล่าสุด)', style: AppTextStyles.heading),
+            Text(service.t('expense_trend'), style: AppTextStyles.heading),
+            const SizedBox(height: 12),
+            PeriodFilterBar(
+              period: _period,
+              anchor: _anchor,
+              onPeriodChanged: (p) => setState(() => _period = p),
+              onAnchorChanged: (d) => setState(() => _anchor = d),
+            ),
             const SizedBox(height: 14),
             AppCard(
               padding: const EdgeInsets.fromLTRB(12, 20, 16, 8),
@@ -99,24 +109,23 @@ class HomeScreen extends StatelessWidget {
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
                             final idx = value.toInt();
-                            if (idx < 0 || idx >= summary.length) {
+                            if (idx < 0 || idx >= series.length) {
                               return const SizedBox.shrink();
                             }
-                            final month = summary[idx].key;
                             return Padding(
                               padding: const EdgeInsets.only(top: 6),
-                              child: Text(_thaiMonthsShort[month.month - 1],
-                                  style: const TextStyle(fontSize: 10)),
+                              child: Text(series[idx].key,
+                                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                             );
                           },
                         ),
                       ),
                     ),
-                    barGroups: List.generate(summary.length, (i) {
+                    barGroups: List.generate(series.length, (i) {
                       return BarChartGroupData(x: i, barRods: [
                         BarChartRodData(
-                          toY: summary[i].value['expense'] ?? 0,
-                          color: Colors.orange.shade400,
+                          toY: series[i].value,
+                          color: AppColors.accentDeep,
                           width: 18,
                           borderRadius: BorderRadius.circular(6),
                         )
@@ -126,17 +135,46 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // ===== ปุ่มกระเป๋าตัง / กระปุกออมสิน =====
+            Row(
+  children: [
+    Expanded(
+      child: _ActionButton(
+        icon: Icons.account_balance_wallet_rounded,
+        label: service.t('Wallet'),
+        color: AppColors.accentDeep,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const WalletScreen()),
+        ),
+      ),
+    ),
+    const SizedBox(width: 12),
+    Expanded(
+      child: _ActionButton(
+        icon: Icons.savings_rounded,
+        label: service.t('GoalSaving'),
+        color: AppColors.accentDeep,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const GoalSavingScreen()),
+        ),
+      ),
+    ),
+  ],
+),
             const SizedBox(height: 28),
-            const Text('Exchange Rate', style: AppTextStyles.heading),
+
+            Text(service.t('exchange_rate'), style: AppTextStyles.heading),
             const SizedBox(height: 12),
             AppCard(
               padding: const EdgeInsets.all(14),
               child: Column(
-                children: const [
-                  _RateRow(flag: '🇺🇸', code: 'USD', buy: '31.55', sell: '31.75'),
-                  _RateRow(flag: '🇪🇺', code: 'EUR', buy: '36.60', sell: '36.90'),
-                  _RateRow(flag: '🇬🇧', code: 'GBP', buy: '42.20', sell: '42.55'),
-                  _RateRow(flag: '🇯🇵', code: 'JPY', buy: '0.2000', sell: '0.2015'),
+                children: [
+                  _RateRow(buyLabel: service.t('buy'), sellLabel: service.t('sell'),
+                      flag: '🇺🇸', code: 'USD', buy: '31.55', sell: '31.75'),
                 ],
               ),
             ),
@@ -172,8 +210,15 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _RateRow extends StatelessWidget {
-  final String flag, code, buy, sell;
-  const _RateRow({required this.flag, required this.code, required this.buy, required this.sell});
+  final String flag, code, buy, sell, buyLabel, sellLabel;
+  const _RateRow({
+    required this.flag,
+    required this.code,
+    required this.buy,
+    required this.sell,
+    required this.buyLabel,
+    required this.sellLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -183,12 +228,58 @@ class _RateRow extends StatelessWidget {
         children: [
           Text(flag, style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
-          Text(code, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(code, style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           const Spacer(),
-          Text('ซื้อ $buy', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+          Text('$buyLabel $buy', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
           const SizedBox(width: 12),
-          Text('ขาย $sell', style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+          Text('$sellLabel $sell', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: onTap,
+        child: AppCard(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

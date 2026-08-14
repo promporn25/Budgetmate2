@@ -7,15 +7,12 @@ import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../services/data_service.dart';
 
-
 const _palette = [
-  Colors.deepPurple, Colors.orange, Colors.teal, Colors.pink,
-  Colors.indigo, Colors.brown, Colors.cyan, Colors.lime,
+  Color(0xFF3D568F), Color(0xFF9FBAF1), Color(0xFF7FA36B), Color(0xFFC97F9A),
+  Color(0xFF6A6FB0), Color(0xFFB0855F), Color(0xFF5FA6B0), Color(0xFFB7C25B),
 ];
 
 /// วิดเจ็ตแสดง Pie Chart สัดส่วนรายจ่าย + ประวัติรายการแบบจัดกลุ่มตามวัน (TODAY/YESTERDAY/...)
-/// แยกออกมาจาก [IncomeExpenseScreen] เพื่อให้ฝังใช้ซ้ำได้ทั้งเป็นหน้าเต็มจอ
-/// และฝังอยู่ใน AddIncomeExpenseScreen ตอนเลือกแท็บ "Expenses"
 class IncomeExpenseOverview extends StatefulWidget {
   const IncomeExpenseOverview({super.key});
 
@@ -85,8 +82,8 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
                                     )),
                                 const SizedBox(width: 6),
                                 Expanded(
-                                    child: Text(entries[i].key.name,
-                                        style: const TextStyle(fontSize: 12),
+                                    child: Text(service.categoryName(entries[i].key),
+                                        style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
                                         overflow: TextOverflow.ellipsis)),
                               ],
                             ),
@@ -100,16 +97,16 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
             ),
           )
         else
-          const EmptyState(icon: Icons.pie_chart_outline_rounded, text: 'ยังไม่มีข้อมูลรายจ่าย'),
+          EmptyState(icon: Icons.pie_chart_outline_rounded, text: service.t('no_expense_data')),
         const SizedBox(height: 6),
-        Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black26),
+        Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
         const SizedBox(height: 6),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('History', style: AppTextStyles.heading),
+              Text(service.t('history'), style: AppTextStyles.heading),
               const SizedBox(height: 12),
               Center(
                 child: Container(
@@ -121,8 +118,8 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _segmentOption('All', _showAll, () => setState(() => _showAll = true)),
-                      _segmentOption('Daily', !_showAll, () => setState(() => _showAll = false)),
+                      _segmentOption(service.t('filter_all'), _showAll, () => setState(() => _showAll = true)),
+                      _segmentOption(service.t('filter_daily'), !_showAll, () => setState(() => _showAll = false)),
                     ],
                   ),
                 ),
@@ -133,7 +130,7 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
         const SizedBox(height: 12),
         Expanded(
           child: list.isEmpty
-              ? const EmptyState(icon: Icons.receipt_long_outlined, text: 'ยังไม่มีรายการ')
+              ? EmptyState(icon: Icons.receipt_long_outlined, text: service.t('no_transactions'))
               : ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: _buildGroupedHistory(list),
@@ -143,7 +140,6 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
     );
   }
 
-  /// จัดกลุ่มรายการตามวัน แล้วสร้างหัวข้อ TODAY / YESTERDAY / วันที่
   List<Widget> _buildGroupedHistory(List<TransactionModel> list) {
     final widgets = <Widget>[];
     DateTime? currentDay;
@@ -160,7 +156,7 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
                 letterSpacing: 1,
-                color: Colors.grey.shade700),
+                color: AppColors.textSecondary),
           ),
         ));
         currentDay = day;
@@ -172,15 +168,17 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
   }
 
   String _dayLabel(DateTime day) {
+    final service = context.read<DataService>();
     final today = DateTime.now();
     final todayDay = DateTime(today.year, today.month, today.day);
     final yesterday = todayDay.subtract(const Duration(days: 1));
-    if (day == todayDay) return 'TODAY';
-    if (day == yesterday) return 'YESTERDAY';
+    if (day == todayDay) return service.t('today');
+    if (day == yesterday) return service.t('yesterday');
     return DateFormat('d MMM yyyy').format(day).toUpperCase();
   }
 
   Widget _historyTile(TransactionModel t) {
+    final service = context.read<DataService>();
     final isIncome = t.type == CategoryType.income;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -193,10 +191,10 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
         children: [
           Row(
             children: [
-              Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.black54),
+              Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 4),
               Text(DateFormat('HH:mm').format(t.date),
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textPrimary)),
               const Spacer(),
               Text(
                 '${isIncome ? '+' : '-'}฿${t.amount.toStringAsFixed(0)}',
@@ -213,11 +211,11 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
             children: [
               CircleAvatar(
                 radius: 15,
-                backgroundColor: Colors.black,
+                backgroundColor: AppColors.accentDeep,
                 child: Icon(t.category.icon, color: Colors.white, size: 15),
               ),
               const SizedBox(width: 8),
-              Text(t.category.name, style: const TextStyle(fontSize: 13)),
+              Text(service.categoryName(t.category), style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
             ],
           ),
         ],
@@ -232,12 +230,12 @@ class _IncomeExpenseOverviewState extends State<IncomeExpenseOverview> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Colors.black : Colors.transparent,
+          color: selected ? AppColors.accentDeep : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Text(label,
             style: TextStyle(
-                color: selected ? Colors.white : Colors.black87,
+                color: selected ? Colors.white : AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13)),
       ),

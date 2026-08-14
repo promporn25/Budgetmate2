@@ -1,123 +1,104 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// DBHelper - ชั้นเชื่อมต่อฐานข้อมูล SQLite (เก็บข้อมูลจริงลงเครื่อง)
-/// แทนที่ In-memory DataService เดิม ให้ข้อมูลไม่หายเมื่อปิดแอป
+/// ทุกเมธอดที่ยิง network ไป Firestore จะมี timeout กำกับไว้เสมอ (10 วิ)
+/// เพื่อไม่ให้ UI ค้าง/หมุนไปเรื่อยๆ แบบไม่มีที่สิ้นสุดถ้าเน็ตช้าหรือ
+/// หลุดกลางทาง — เดิมมีแต่ login/register ที่ตั้ง timeout ไว้ ส่วน
+/// insert/update/delete/query (ที่ทุกหน้าจอเรียกใช้ตลอด) ไม่มี timeout เลย
+const _dbTimeout = Duration(seconds: 10);
+
 class DBHelper {
   DBHelper._internal();
   static final DBHelper instance = DBHelper._internal();
 
-  Database? _db;
+  final FirebaseFirestore _fs = FirebaseFirestore.instance;
 
-  Future<Database> get database async {
-    if (_db != null) return _db!;
-    _db = await _initDB();
-    return _db!;
-  }
-
-  Future<Database> _initDB() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'budgetmate.db');
-    return openDatabase(
-      path,
-      version: 1,
-      onCreate: _onCreate,
-    );
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    // Entity: User (บทที่ 3 - user_id, name, email, password, created_at, language, currency)
-    await db.execute('''
-      CREATE TABLE users (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        language TEXT NOT NULL DEFAULT 'ไทย',
-        currency TEXT NOT NULL DEFAULT 'THB'
-      )
-    ''');
-
-    // Entity: Category (category_id, category_name, category_type)
-    await db.execute('''
-      CREATE TABLE categories (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        icon_code INTEGER NOT NULL,
-        description TEXT
-      )
-    ''');
-
-    // Entity: Transaction (transaction_id, type, amount, category_id FK, date, note, description)
-    await db.execute('''
-      CREATE TABLE transactions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        amount REAL NOT NULL,
-        category_id TEXT NOT NULL,
-        date TEXT NOT NULL,
-        note TEXT,
-        description TEXT,
-        receipt_path TEXT,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-        FOREIGN KEY (category_id) REFERENCES categories (id)
-      )
-    ''');
-
-    // Entity: Goal_Saving (goal_id, goal_name, target_amount, saved_amount, start_date, target_date, status)
-    await db.execute('''
-      CREATE TABLE goals (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        target_amount REAL NOT NULL,
-        saved_amount REAL NOT NULL DEFAULT 0,
-        start_date TEXT NOT NULL,
-        target_date TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'inProgress',
-        icon_code INTEGER NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )
-    ''');
-  }
+  CollectionReference<Map<String, dynamic>> _col(String table) =>
+      _fs.collection(table);
 
   // ---------------- Generic CRUD helpers ----------------
+  // ใช้ data['id'] เป็น document id เสมอ (โค้ดเดิมสร้าง id ด้วย uuid อยู่แล้ว)
   Future<int> insert(String table, Map<String, dynamic> data) async {
-    final db = await database;
-    return db.insert(table, data, conflictAlgorithm: ConflictAlgorithm.replace);
+    final id = data['id'] as String;
+    await _col(table).doc(id).set(data).timeout(
+          _dbTimeout,
+          onTimeout: () => throw Exception('เชื่อมต่อฐานข้อมูลไม่ได้ (หมดเวลา) - เช็คอินเทอร์เน็ต'),
+        );
+    return 1;
   }
 
+  // เพิ่มหลายรายการในครั้งเดียวด้วย WriteBatch (1 round-trip แทนที่จะยิงทีละรายการ)
+  // Firestore batch รองรับสูงสุด 500 operations ต่อ batch จึงแบ่งเป็นชุดๆ ถ้าเผื่อไว้
+  Future<void> insertBatch(String table, List<Map<String, dynamic>> items) async {
+    if (items.isEmpty) return;
+    const chunkSize = 450;
+    for (int i = 0; i < items.length; i += chunkSize) {
+      final chunk = items.sublist(i, i + chunkSize > items.length ? items.length : i + chunkSize);
+      final batch = _fs.batch();
+      for (final data in chunk) {
+        final id = data['id'] as String;
+        batch.set(_col(table).doc(id), data);
+      }
+      await batch.commit().timeout(
+            _dbTimeout,
+            onTimeout: () => throw Exception('บันทึกไม่สำเร็จ (หมดเวลาเชื่อมต่อ) - เช็คอินเทอร์เน็ต'),
+          );
+    }
+  }
+
+  // รองรับเฉพาะ where แบบ 'field = ?' กับ whereArgs 1 ค่า (ตรงกับที่ใช้ทั้งโปรเจกต์)
   Future<List<Map<String, dynamic>>> query(
     String table, {
     String? where,
     List<Object?>? whereArgs,
     String? orderBy,
   }) async {
-    final db = await database;
-    return db.query(table, where: where, whereArgs: whereArgs, orderBy: orderBy);
+    Query<Map<String, dynamic>> q = _col(table);
+
+    if (where != null && whereArgs != null && whereArgs.isNotEmpty) {
+      final field = where.split('=').first.trim();
+      q = q.where(field, isEqualTo: whereArgs.first);
+    }
+
+    if (orderBy != null && orderBy.trim().isNotEmpty) {
+      final parts = orderBy.trim().split(RegExp(r'\s+'));
+      final field = parts[0];
+      final desc = parts.length > 1 && parts[1].toUpperCase() == 'DESC';
+      q = q.orderBy(field, descending: desc);
+    }
+
+    final snap = await q.get().timeout(
+          _dbTimeout,
+          onTimeout: () => throw Exception('โหลดข้อมูลไม่สำเร็จ (หมดเวลาเชื่อมต่อ) - เช็คอินเทอร์เน็ต'),
+        );
+    return snap.docs.map((d) => d.data()).toList();
   }
 
+  // รองรับเฉพาะ where = 'id = ?' (ตรงกับที่ใช้ทั้งโปรเจกต์)
   Future<int> update(
     String table,
     Map<String, dynamic> data,
     String where,
     List<Object?> whereArgs,
   ) async {
-    final db = await database;
-    return db.update(table, data, where: where, whereArgs: whereArgs);
+    final id = whereArgs.first.toString();
+    await _col(table).doc(id).set(data, SetOptions(merge: true)).timeout(
+          _dbTimeout,
+          onTimeout: () => throw Exception('บันทึกไม่สำเร็จ (หมดเวลาเชื่อมต่อ) - เช็คอินเทอร์เน็ต'),
+        );
+    return 1;
   }
 
   Future<int> delete(String table, String where, List<Object?> whereArgs) async {
-    final db = await database;
-    return db.delete(table, where: where, whereArgs: whereArgs);
+    final id = whereArgs.first.toString();
+    await _col(table).doc(id).delete().timeout(
+          _dbTimeout,
+          onTimeout: () => throw Exception('ลบไม่สำเร็จ (หมดเวลาเชื่อมต่อ) - เช็คอินเทอร์เน็ต'),
+        );
+    return 1;
   }
 
   Future<int> count(String table) async {
-    final db = await database;
-    final result = await db.rawQuery('SELECT COUNT(*) as c FROM $table');
-    return Sqflite.firstIntValue(result) ?? 0;
+    final agg = await _col(table).count().get().timeout(_dbTimeout);
+    return agg.count ?? 0;
   }
 }

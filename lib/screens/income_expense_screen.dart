@@ -1,22 +1,40 @@
+import 'package:budgetmate/screens/app_theme.dart';
+import 'package:budgetmate/screens/income%20expense%20overview.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/data_service.dart';
 import '../widgets/bottom_nav.dart';
-import 'Income expense overview.dart';
+import 'wallet_screen.dart';
 
-/// หน้า Income/Expense (3.4.9) - แสดงสัดส่วนรายจ่ายแบบ Pie Chart และประวัติรายวัน
-/// เนื้อหาหลัก (pie chart + history) อยู่ใน [IncomeExpenseOverview] เพื่อให้ฝังใช้ซ้ำได้
-/// ในหน้า Add Income/Expense ตอนเลือกแท็บ "Expenses" ด้วยเช่นกัน
+/// หน้า Income/Expense (3.4.9)
 class IncomeExpenseScreen extends StatelessWidget {
   const IncomeExpenseScreen({super.key});
 
+  void _handleBack(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<DataService>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Income/Expense', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          tooltip: 'ย้อนกลับ',
+          onPressed: () => _handleBack(context),
+        ),
+        title: Text(service.t('income_expense'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: const IncomeExpenseOverview(),
       bottomNavigationBar: const BottomNav(currentIndex: 1),

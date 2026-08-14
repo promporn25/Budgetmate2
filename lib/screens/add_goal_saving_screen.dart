@@ -41,15 +41,16 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   Future<void> _save() async {
     if (_saving) return;
     final amount = double.tryParse(_amountText) ?? 0;
+    final service = context.read<DataService>();
     if (_nameCtrl.text.isEmpty || amount <= 0) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อและจำนวนเงินเป้าหมาย')));
+          .showSnackBar(SnackBar(content: Text(service.t('fill_name_and_amount'))));
       return;
     }
 
     setState(() => _saving = true);
 
-    await context.read<DataService>().addGoal(
+    await service.addGoal(
           name: _nameCtrl.text,
           targetAmount: amount,
           targetDate: _targetDate,
@@ -62,24 +63,26 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<DataService>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Goal Saving', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('goal_saving'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
             child: _saving
-                ? const SizedBox(
+                ? SizedBox(
                     height: 16,
                     width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Text('SAVE',
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
+                : Text(service.t('save'),
                     style: TextStyle(
-                        color: Colors.orange.shade700, fontWeight: FontWeight.bold)),
+                        color: AppColors.ink, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -90,11 +93,11 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
           children: [
             AppTextField(
               controller: _nameCtrl,
-              hint: 'ชื่อเป้าหมาย',
+              hint: service.t('goal_name_hint'),
               icon: Icons.flag_outlined,
             ),
             const SizedBox(height: 18),
-            const Text('Categories', style: AppTextStyles.heading),
+            Text(service.t('categories'), style: AppTextStyles.heading),
             const SizedBox(height: 10),
             Wrap(
               spacing: 14,
@@ -107,8 +110,8 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                     duration: const Duration(milliseconds: 150),
                     child: CircleAvatar(
                       radius: 26,
-                      backgroundColor: selected ? Colors.orange : AppColors.surface,
-                      child: Icon(icon, size: 24, color: selected ? Colors.white : Colors.black54),
+                      backgroundColor: selected ? AppColors.accentDeep : AppColors.surface,
+                      child: Icon(icon, size: 24, color: selected ? Colors.white : AppColors.textSecondary),
                     ),
                   ),
                 );
@@ -119,11 +122,12 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.event_outlined, color: Colors.grey.shade600),
-                title: const Text('วันที่ต้องการให้ถึงเป้าหมาย', style: TextStyle(fontSize: 13.5)),
+                leading: Icon(Icons.event_outlined, color: AppColors.textSecondary),
+                title: Text(service.t('target_date_label'),
+                    style: TextStyle(fontSize: 13.5, color: AppColors.textPrimary)),
                 subtitle: Text('${_targetDate.day}/${_targetDate.month}/${_targetDate.year}',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: context,
@@ -139,7 +143,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
             Align(
               alignment: Alignment.centerRight,
               child: Text('฿ $_amountText',
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
             ),
             const SizedBox(height: 8),
             Expanded(child: _numPad()),
@@ -156,9 +160,6 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
       ['1', '2', '3'],
       ['.', '0', '⌫'],
     ];
-    // แก้บั๊ก: เดิมใช้ GridView (childAspectRatio ตายตัว) ทำให้ถ้าพื้นที่ที่ได้รับ (จาก Expanded)
-    // เตี้ยกว่าที่ต้องใช้จริง แป้นตัวเลขจะกลายเป็นสามารถเลื่อนได้ (ต้องเลื่อนถึงจะกดแถวล่างสุด)
-    // เปลี่ยนมาใช้ Column ของ Row ที่ยืดเต็มพื้นที่ที่มีเป๊ะๆ แทน จึงไม่มีการเลื่อนเกิดขึ้นอีก
     return Column(
       children: rows
           .map((row) => Expanded(
@@ -175,8 +176,8 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                                   onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
                                   child: Center(
                                     child: Text(key,
-                                        style: const TextStyle(
-                                            fontSize: 22, fontWeight: FontWeight.w600)),
+                                        style: TextStyle(
+                                            fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                                   ),
                                 ),
                               ),

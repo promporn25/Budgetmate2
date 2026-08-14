@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,8 +9,11 @@ import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/goal_model.dart';
 import '../models/user_model.dart';
+import 'app_strings.dart';
+import '../screens/app_theme.dart'; // เพิ่มบรรทัดนี้
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-const _sessionKey = 'budgetmate_session_user_id';
 const _setupDoneKey = 'budgetmate_setup_completed';
 const _defaultLangKey = 'budgetmate_default_language';
 const _defaultCurrencyKey = 'budgetmate_default_currency';
@@ -22,11 +23,16 @@ const _successNotesKey = 'budgetmate_success_notes_enabled';
 /// DataService รวบรวมการทำงานของระบบทั้งหมดตามขอบเขตโครงงาน (1.3.1 - 1.3.4)
 /// เวอร์ชันนี้เก็บข้อมูลจริงลง SQLite ผ่าน DBHelper (ไม่ใช่ in-memory demo แล้ว)
 /// - รายการ/เป้าหมายจะถูกโหลดเฉพาะของผู้ใช้ที่ล็อกอินอยู่ (currentUser)
-/// - รหัสผ่านเก็บเป็นค่า SHA-256 hash
-/// - สถานะล็อกอินถูกจำไว้ด้วย SharedPreferences จึงไม่ต้องล็อกอินใหม่ทุกครั้งที่เปิดแอป
+/// - การยืนยันตัวตนทั้งหมด (สมัครสมาชิก/ล็อกอินด้วยอีเมล/ล็อกอินด้วย Google/ลืมรหัสผ่าน/
+///   เปลี่ยนรหัสผ่าน) เชื่อมต่อกับ Firebase Authentication โดยตรง ไม่มีการเก็บรหัสผ่าน
+///   หรือทำ hash เองในแอปอีกต่อไป ส่วนข้อมูลโปรไฟล์ (ชื่อ/ภาษา/สกุลเงิน ฯลฯ) เก็บใน
+///   Firestore โดยใช้ uid จาก Firebase Auth เป็น document id
+/// - สถานะล็อกอินถูกจำไว้โดย Firebase Authentication เองโดยอัตโนมัติ จึงไม่ต้อง
+///   ล็อกอินใหม่ทุกครั้งที่เปิดแอป
 class DataService extends ChangeNotifier {
   final _uuid = const Uuid();
   final _db = DBHelper.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ---------------- User session ----------------
   UserModel? currentUser;
@@ -37,6 +43,41 @@ class DataService extends ChangeNotifier {
 
   // ---------------- ธีมของแอป (Light/Dark) ----------------
   ThemeMode themeMode = ThemeMode.light;
+
+  // ---------------- ภาษาปัจจุบันของแอป ----------------
+  // ใช้ currentUser?.language ถ้าล็อกอินอยู่ ไม่งั้น fallback ไปที่ค่า default
+  // ที่ตั้งไว้ตอน setup (หน้า My wallet) เพื่อให้หน้าก่อนล็อกอิน (Login/Register/
+  // Language Setup) เปลี่ยนภาษาได้เช่นกัน
+  String _defaultLanguage = 'ไทย';
+  String get currentLanguage => currentUser?.language ?? _defaultLanguage;
+
+  /// แปลข้อความตาม key จาก AppStrings ตามภาษาปัจจุบันของแอป
+  /// เรียกใช้ผ่าน context.watch<DataService>().t('key') ในทุกหน้า
+  /// เพื่อให้ UI รีเฟรชเป็นภาษาใหม่ทันทีเมื่อ notifyListeners() ถูกเรียก
+  String t(String key) => AppStrings.of(currentLanguage)[key] ?? key;
+
+  /// แปลชื่อหมวดหมู่ตามภาษาปัจจุบัน สำหรับหมวดหมู่เริ่มต้นของระบบ (c01-c17)
+  /// ซึ่งชื่อถูก seed ไว้เป็นภาษาไทยตายตัวใน SQLite ตั้งแต่แรก (ไม่ได้ผูกกับภาษา UI)
+  /// จึงต้องแปลผ่าน key 'cat_<id>' แทนการอ่านชื่อจากฐานข้อมูลตรงๆ
+  /// หมวดหมู่ที่ผู้ใช้สร้างเองเพิ่มเติม (id ไม่ตรงกับ c01-c17) จะใช้ชื่อเดิมตามที่ผู้ใช้ตั้งไว้
+  String categoryName(CategoryModel category) {
+    final strings = AppStrings.of(currentLanguage);
+    return strings['cat_${category.id}'] ?? category.name;
+  }
+
+  /// เปลี่ยนภาษาทั้งแอปทันที ใช้ได้ทั้งก่อนและหลังล็อกอิน
+  /// - ถ้าล็อกอินอยู่: บันทึกลงโปรไฟล์ผู้ใช้ใน SQLite ผ่าน updateProfile
+  /// - ถ้ายังไม่ล็อกอิน: บันทึกเป็นค่า default ใน SharedPreferences
+  Future<void> setLanguage(String language) async {
+    if (currentUser != null) {
+      await updateProfile(language: language);
+    } else {
+      _defaultLanguage = language;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_defaultLangKey, language);
+      notifyListeners();
+    }
+  }
 
   // ---------------- การแจ้งเตือนเมื่อทำรายการสำเร็จ (Success Notes) ----------------
   bool successNotesEnabled = true;
@@ -68,16 +109,17 @@ class DataService extends ChangeNotifier {
         ? ThemeMode.dark
         : ThemeMode.light;
     successNotesEnabled = prefs.getBool(_successNotesKey) ?? true;
+    _defaultLanguage = prefs.getString(_defaultLangKey) ?? 'ไทย';
 
-    final userId = prefs.getString(_sessionKey);
-    if (userId != null) {
-      final rows = await _db.query('users', where: 'id = ?', whereArgs: [userId]);
+    // Firebase Authentication จำสถานะล็อกอินไว้ให้เองอยู่แล้ว (persistent session)
+    // จึงเช็คแค่ว่ามีผู้ใช้ที่ล็อกอินค้างอยู่หรือไม่ แล้วโหลดโปรไฟล์ที่ตรงกันจาก Firestore
+    final fbUser = FirebaseAuth.instance.currentUser;
+    if (fbUser != null) {
+      final rows = await _db.query('users', where: 'id = ?', whereArgs: [fbUser.uid]);
       if (rows.isNotEmpty) {
         currentUser = UserModel.fromMap(rows.first);
         avatarPath = prefs.getString('avatar_path_${currentUser!.id}');
         await _loadUserData();
-      } else {
-        await prefs.remove(_sessionKey);
       }
     }
     isReady = true;
@@ -134,8 +176,6 @@ class DataService extends ChangeNotifier {
       ..addAll(goalRows.map((r) => GoalModel.fromMap(r)));
   }
 
-  String _hash(String raw) => sha256.convert(utf8.encode(raw)).toString();
-
   // =========================================================
   // SETUP (หน้า "My wallet" - เลือกภาษา/สกุลเงินเริ่มต้น แสดงครั้งแรกที่เปิดแอป)
   // =========================================================
@@ -151,6 +191,8 @@ class DataService extends ChangeNotifier {
     await prefs.setBool(_setupDoneKey, true);
     await prefs.setString(_defaultLangKey, language);
     await prefs.setString(_defaultCurrencyKey, currency);
+    _defaultLanguage = language;
+    notifyListeners();
   }
 
   Future<Map<String, String>> getDefaultPreferences() async {
@@ -162,74 +204,190 @@ class DataService extends ChangeNotifier {
   }
 
   // =========================================================
-  // AUTHENTICATION (หน้า Login / Register)
+  // AUTHENTICATION (หน้า Login / Register) - เชื่อมต่อกับ Firebase Authentication
   // =========================================================
+  /// สมัครสมาชิกด้วยอีเมล/รหัสผ่านผ่าน Firebase Authentication โดยตรง
+  /// (Firebase เป็นผู้ตรวจสอบอีเมลซ้ำ/ความยาวรหัสผ่านให้ ไม่ต้องเช็คเองในแอปอีก)
+  /// จากนั้นจึงบันทึกข้อมูลโปรไฟล์ (ชื่อ/ภาษา/สกุลเงิน) ลง Firestore โดยใช้ uid เป็น id
   Future<String?> register(String name, String email, String password) async {
-    final exists = await _db.query('users', where: 'email = ?', whereArgs: [email]);
-    if (exists.isNotEmpty) {
-      return 'อีเมลนี้ถูกใช้งานแล้ว';
+    try {
+      final cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password)
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw FirebaseAuthException(
+          code: 'network-timeout',
+          message: 'เชื่อมต่อ Firebase ไม่ได้ (หมดเวลา 15 วินาที) - เช็คการเชื่อมต่ออินเทอร์เน็ต',
+        ),
+      );
+      final fbUser = cred.user;
+      if (fbUser == null) return t('save_failed');
+      await fbUser.updateDisplayName(name);
+
+      final defaults = await getDefaultPreferences();
+      final user = UserModel(
+        id: fbUser.uid,
+        name: name,
+        email: email,
+        createdAt: DateTime.now(),
+        language: defaults['language']!,
+        currency: defaults['currency']!,
+      );
+      await _db.insert('users', user.toMap());
+
+      currentUser = user;
+      _transactions.clear();
+      _goals.clear();
+
+      notifyListeners();
+      return null; // สำเร็จ
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'email-already-in-use':
+          return t('email_in_use');
+        case 'weak-password':
+          return t('password_min_length');
+        default:
+          return e.message ?? t('save_failed');
+      }
+    } catch (e) {
+      // เผื่อกรณี error ที่ไม่ใช่ FirebaseAuthException โดยตรง เช่น เขียน Firestore
+      // ไม่สำเร็จ หรือเน็ตหลุด - ต้อง return ข้อความเสมอ ไม่ปล่อยให้ throw หลุดออกไป
+      // ไม่งั้นหน้าสมัครสมาชิกจะค้างสถานะ loading ตลอดไปเพราะ setState ไม่ถูกเรียก
+      return '${t('save_failed')}: $e';
     }
-
-    final defaults = await getDefaultPreferences();
-    final user = UserModel(
-      id: _uuid.v4(),
-      name: name,
-      email: email,
-      password: _hash(password),
-      createdAt: DateTime.now(),
-      language: defaults['language']!,
-      currency: defaults['currency']!,
-    );
-    await _db.insert('users', user.toMap());
-
-    currentUser = user;
-    _transactions.clear();
-    _goals.clear();
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sessionKey, user.id);
-
-    notifyListeners();
-    return null; // สำเร็จ
   }
 
+  /// เข้าสู่ระบบด้วยอีเมล/รหัสผ่านผ่าน Firebase Authentication โดยตรง
   Future<String?> login(String email, String password) async {
-    final rows = await _db.query('users', where: 'email = ?', whereArgs: [email]);
-    if (rows.isEmpty) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final fbUser = cred.user;
+      if (fbUser == null) return t('login_error');
 
-    final user = UserModel.fromMap(rows.first);
-    if (user.password != _hash(password)) {
-      return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+      final rows = await _db.query('users', where: 'id = ?', whereArgs: [fbUser.uid]);
+      UserModel user;
+      if (rows.isEmpty) {
+        // เผื่อกรณีมีบัญชีใน Firebase Auth อยู่แล้วแต่ยังไม่มีโปรไฟล์ใน Firestore
+        final defaults = await getDefaultPreferences();
+        user = UserModel(
+          id: fbUser.uid,
+          name: fbUser.displayName ?? email.split('@').first,
+          email: email,
+          createdAt: DateTime.now(),
+          language: defaults['language']!,
+          currency: defaults['currency']!,
+        );
+        await _db.insert('users', user.toMap());
+      } else {
+        user = UserModel.fromMap(rows.first);
+      }
+
+      currentUser = user;
+      await _loadUserData();
+
+      final prefs = await SharedPreferences.getInstance();
+      avatarPath = prefs.getString('avatar_path_${user.id}');
+
+      notifyListeners();
+      return null;
+    } on FirebaseAuthException catch (_) {
+      return t('login_error');
+    } catch (e) {
+      return '${t('login_error')}: $e';
     }
+  }
 
-    currentUser = user;
-    await _loadUserData();
+  /// เข้าสู่ระบบ/สมัครสมาชิกอัตโนมัติด้วยบัญชี Google
+  /// คืนค่า null หากสำเร็จ หรือข้อความ error หากไม่สำเร็จ/ผู้ใช้ยกเลิก
+  Future<String?> loginWithGoogle() async {
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return t('login_error'); // ผู้ใช้กดยกเลิก
 
-    final prefs = await SharedPreferences.getInstance();
-    avatarPath = prefs.getString('avatar_path_${user.id}');
-    await prefs.setString(_sessionKey, user.id);
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
 
-    notifyListeners();
-    return null;
+      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+      final fbUser = userCred.user;
+      if (fbUser == null || fbUser.email == null) return t('login_error');
+
+      // ใช้ uid ของ Firebase Auth เป็น document id เสมอ (แหล่งอ้างอิงเดียวกับ
+      // register/login แบบอีเมล-รหัสผ่าน) เพื่อไม่ให้บัญชี Google กับบัญชีอีเมลชนกัน
+      final rows = await _db.query('users', where: 'id = ?', whereArgs: [fbUser.uid]);
+
+      UserModel user;
+      if (rows.isEmpty) {
+        // ยังไม่เคยมีโปรไฟล์ -> สร้างให้อัตโนมัติ (Firebase Auth ดูแลเรื่องรหัสผ่านให้แล้ว)
+        final defaults = await getDefaultPreferences();
+        user = UserModel(
+          id: fbUser.uid,
+          name: fbUser.displayName ?? fbUser.email!.split('@').first,
+          email: fbUser.email!,
+          createdAt: DateTime.now(),
+          language: defaults['language']!,
+          currency: defaults['currency']!,
+        );
+        await _db.insert('users', user.toMap());
+      } else {
+        user = UserModel.fromMap(rows.first);
+      }
+
+      currentUser = user;
+      await _loadUserData();
+
+      final prefs = await SharedPreferences.getInstance();
+      avatarPath = prefs.getString('avatar_path_${user.id}');
+
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return '${t('login_error')}: $e';
+    }
   }
 
   /// รีเซ็ตรหัสผ่านด้วยอีเมล (หน้า Forgot Password)
-  /// คืนค่า null หากสำเร็จ หรือข้อความ error หากไม่พบบัญชีที่ใช้อีเมลนี้
-  Future<String?> resetPassword(String email, String newPassword) async {
-    final rows = await _db.query('users', where: 'email = ?', whereArgs: [email]);
-    if (rows.isEmpty) return 'ไม่พบบัญชีที่ใช้อีเมลนี้ในระบบ';
-
-    final userId = rows.first['id'] as String;
-    await _db.update('users', {'password': _hash(newPassword)}, 'id = ?', [userId]);
-    return null;
+  /// ส่งอีเมลลิงก์รีเซ็ตรหัสผ่านผ่าน Firebase Authentication โดยตรง (sendPasswordResetEmail)
+  /// ผู้ใช้จะตั้งรหัสผ่านใหม่จากลิงก์ในอีเมล ไม่ใช่กรอกในแอปอีกต่อไป
+  /// คืนค่า null หากส่งอีเมลสำเร็จ หรือข้อความ error หากไม่พบบัญชีที่ใช้อีเมลนี้
+  Future<String?> resetPassword(String email) async {
+    try {
+      final lang = currentLanguage == 'English' ? 'en' : 'th';
+      final actionCodeSettings = ActionCodeSettings(
+        url:
+            'https://budgetmate-app-a94da.web.app/reset_password.html?lang=$lang',
+        handleCodeInApp: false,
+      );
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: email,
+        actionCodeSettings: actionCodeSettings,
+      );
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'user-not-found':
+        case 'invalid-email':
+          return t('account_not_found');
+        default:
+          return e.message ?? t('account_not_found');
+      }
+    }
   }
 
   Future<void> logout() async {
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    await FirebaseAuth.instance.signOut();
     currentUser = null;
     _transactions.clear();
     _goals.clear();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_sessionKey);
     notifyListeners();
   }
 
@@ -310,14 +468,33 @@ class DataService extends ChangeNotifier {
   }
 
   /// เปลี่ยนรหัสผ่าน (ต้องกรอกรหัสผ่านเดิมให้ถูกต้องก่อน) - หน้า Password & Security
+  /// ยืนยันตัวตนซ้ำ (reauthenticate) กับ Firebase Authentication ด้วยรหัสผ่านเดิม
+  /// ก่อนอัปเดตเป็นรหัสผ่านใหม่ (ผู้ใช้ที่ล็อกอินด้วย Google เท่านั้นที่จะไม่มีรหัสผ่านให้เปลี่ยน)
   Future<String?> changePassword(String currentPassword, String newPassword) async {
-    if (currentUser == null) return 'กรุณาเข้าสู่ระบบก่อน';
-    if (currentUser!.password != _hash(currentPassword)) {
-      return 'รหัสผ่านเดิมไม่ถูกต้อง';
+    if (currentUser == null) return t('please_login_first');
+    final fbUser = FirebaseAuth.instance.currentUser;
+    if (fbUser == null || fbUser.email == null) return t('please_login_first');
+
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: fbUser.email!,
+        password: currentPassword,
+      );
+      await fbUser.reauthenticateWithCredential(credential);
+      await fbUser.updatePassword(newPassword);
+      notifyListeners();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          return t('wrong_current_password');
+        case 'weak-password':
+          return t('password_min_length');
+        default:
+          return e.message ?? t('wrong_current_password');
+      }
     }
-    await _db.update('users', {'password': _hash(newPassword)}, 'id = ?', [currentUser!.id]);
-    notifyListeners();
-    return null;
   }
 
   // =========================================================
@@ -345,6 +522,35 @@ class DataService extends ChangeNotifier {
     );
     await _db.insert('transactions', tx.toMap(currentUser!.id));
     _transactions.add(tx);
+    notifyListeners();
+  }
+
+  /// เพิ่มหลายรายการพร้อมกันในครั้งเดียว (ใช้ตอนกด Save ในหน้า Add Income/Expense
+  /// ที่ผู้ใช้อาจเพิ่มไว้หลายรายการก่อนกดบันทึก) ยิง network request ครั้งเดียวผ่าน
+  /// insertBatch แทนการวนลูป await ทีละรายการ ทำให้เร็วขึ้นมากเมื่อมีหลายรายการ
+  Future<void> addTransactionsBatch(
+    List<({CategoryType type, double amount, CategoryModel category, String? note})> items,
+  ) async {
+    if (currentUser == null || items.isEmpty) return;
+    final now = DateTime.now();
+
+    final newTx = items
+        .map((item) => TransactionModel(
+              id: _uuid.v4(),
+              type: item.type,
+              amount: item.amount,
+              category: item.category,
+              date: now,
+              note: item.note,
+            ))
+        .toList();
+
+    await _db.insertBatch(
+      'transactions',
+      newTx.map((tx) => tx.toMap(currentUser!.id)).toList(),
+    );
+
+    _transactions.addAll(newTx);
     notifyListeners();
   }
 
@@ -379,11 +585,12 @@ class DataService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addCategory(String name, CategoryType type, IconData icon) async {
+  Future<CategoryModel> addCategory(String name, CategoryType type, IconData icon) async {
     final category = CategoryModel(id: _uuid.v4(), name: name, type: type, icon: icon);
     await _db.insert('categories', category.toMap());
     categories.add(category);
     notifyListeners();
+    return category;
   }
 
   List<CategoryModel> categoriesByType(CategoryType type) =>
@@ -455,15 +662,15 @@ class DataService extends ChangeNotifier {
   /// 2) เพิ่มยอดเงินออมสะสม (saved_amount) ของเป้าหมายพร้อมกัน
   /// คืนค่า null หากโอนสำเร็จ หรือข้อความ error หากทำไม่ได้ (เช่น ยอดคงเหลือไม่พอ)
   Future<String?> transferToGoal(String goalId, double amount, {String? note}) async {
-    if (currentUser == null) return 'กรุณาเข้าสู่ระบบก่อน';
-    if (amount <= 0) return 'กรุณากรอกจำนวนเงินให้ถูกต้อง';
+    if (currentUser == null) return t('please_login_first');
+    if (amount <= 0) return t('enter_valid_amount');
 
     final goalIndex = _goals.indexWhere((g) => g.id == goalId);
-    if (goalIndex == -1) return 'ไม่พบเป้าหมายนี้';
+    if (goalIndex == -1) return t('goal_not_found');
     final goal = _goals[goalIndex];
 
     if (amount > balance) {
-      return 'ยอดเงินคงเหลือใน Ledger ไม่เพียงพอ (คงเหลือ ฿${balance.toStringAsFixed(2)})';
+      return '${t('insufficient_ledger_prefix')} ฿${balance.toStringAsFixed(2)})';
     }
 
     // แก้บั๊ก: เดิมเมธอดนี้ไม่ตรวจว่าจำนวนที่โอนเกินยอดที่ยังขาดอยู่ของเป้าหมายหรือไม่
@@ -471,7 +678,7 @@ class DataService extends ChangeNotifier {
     // สามารถเกิน target_amount ได้แบบเงียบๆ เมื่อผู้ใช้กรอกจำนวนเกินที่ต้องการอีก
     final remaining = goal.targetAmount - goal.savedAmount;
     if (remaining > 0 && amount > remaining) {
-      return 'จำนวนเงินเกินยอดที่ต้องการอีก (ต้องการอีก ฿${remaining.toStringAsFixed(2)})';
+      return '${t('amount_exceeds_prefix')} ฿${remaining.toStringAsFixed(2)})';
     }
 
     final category = await _ensureGoalSavingCategory();
@@ -506,7 +713,7 @@ class DataService extends ChangeNotifier {
       goal.savedAmount -= amount;
       goal.status = wasCompleted ? GoalStatus.completed : GoalStatus.inProgress;
       notifyListeners();
-      return 'เกิดข้อผิดพลาด ไม่สามารถโอนเงินได้ กรุณาลองใหม่อีกครั้ง';
+      return t('transfer_failed');
     }
 
     notifyListeners();
@@ -542,15 +749,65 @@ class DataService extends ChangeNotifier {
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
-  /// สรุปรายรับ-รายจ่ายรายเดือน ย้อนหลัง [months] เดือน (ข้อ 1.3.3.1)
-  List<MapEntry<DateTime, Map<String, double>>> monthlySummary({int months = 6}) {
-    final now = DateTime.now();
+  /// ยอดรวมของวันใดวันหนึ่ง (ใช้กับกราฟที่เลือกดูแบบ "วัน")
+  double dailyTotal(CategoryType type, DateTime day) {
+    return _transactions
+        .where((t) =>
+            t.type == type &&
+            t.date.year == day.year &&
+            t.date.month == day.month &&
+            t.date.day == day.day)
+        .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  /// ยอดรวมของปีใดปีหนึ่ง (ใช้กับกราฟที่เลือกดูแบบ "ปี")
+  double yearlyTotal(CategoryType type, int year) {
+    return _transactions
+        .where((t) => t.type == type && t.date.year == year)
+        .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  /// สรุปรายรับ-รายจ่ายรายวัน ย้อนหลัง [days] วัน นับจาก [endDate] (ค่าเริ่มต้นคือวันนี้)
+  /// ใช้เมื่อผู้ใช้เลือกดูกราฟแบบ "วัน" ในหน้า Home / Statistic
+  List<MapEntry<DateTime, Map<String, double>>> dailySummary({int days = 7, DateTime? endDate}) {
+    final end = endDate ?? DateTime.now();
+    final result = <MapEntry<DateTime, Map<String, double>>>[];
+    for (int i = days - 1; i >= 0; i--) {
+      final day = DateTime(end.year, end.month, end.day - i);
+      result.add(MapEntry(day, {
+        'income': dailyTotal(CategoryType.income, day),
+        'expense': dailyTotal(CategoryType.expense, day),
+      }));
+    }
+    return result;
+  }
+
+  /// สรุปรายรับ-รายจ่ายรายเดือน ย้อนหลัง [months] เดือน นับจาก [endMonth] (ข้อ 1.3.3.1)
+  /// [endMonth] ใช้แค่เดือน/ปีเป็นตัวอ้างอิง (ไม่สนใจวัน) ค่าเริ่มต้นคือเดือนปัจจุบัน
+  /// เพิ่มพารามิเตอร์นี้เพื่อรองรับการ "เลือกเดือน/ปี" ย้อนหลังจากหน้า Home / Statistic
+  List<MapEntry<DateTime, Map<String, double>>> monthlySummary({int months = 6, DateTime? endMonth}) {
+    final now = endMonth ?? DateTime.now();
     final result = <MapEntry<DateTime, Map<String, double>>>[];
     for (int i = months - 1; i >= 0; i--) {
       final month = DateTime(now.year, now.month - i, 1);
       result.add(MapEntry(month, {
         'income': monthlyTotal(CategoryType.income, month),
         'expense': monthlyTotal(CategoryType.expense, month),
+      }));
+    }
+    return result;
+  }
+
+  /// สรุปรายรับ-รายจ่ายรายปี ย้อนหลัง [years] ปี นับจาก [endYear] (ค่าเริ่มต้นคือปีปัจจุบัน)
+  /// ใช้เมื่อผู้ใช้เลือกดูกราฟแบบ "ปี" ในหน้า Home / Statistic
+  List<MapEntry<int, Map<String, double>>> yearlySummary({int years = 5, int? endYear}) {
+    final end = endYear ?? DateTime.now().year;
+    final result = <MapEntry<int, Map<String, double>>>[];
+    for (int i = years - 1; i >= 0; i--) {
+      final year = end - i;
+      result.add(MapEntry(year, {
+        'income': yearlyTotal(CategoryType.income, year),
+        'expense': yearlyTotal(CategoryType.expense, year),
       }));
     }
     return result;

@@ -2,14 +2,12 @@ import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/data_service.dart';
-import 'login_screen.dart';
+import 'home_screen.dart';
 
 const List<String> _languages = ['ไทย', 'English'];
 const List<String> _currencies = ['THB', 'USD', 'EUR', 'JPY', 'GBP'];
 
 /// หน้า "My wallet" (3.4.2) - ตั้งค่าภาษาและสกุลเงินเริ่มต้นของแอป
-/// แสดงครั้งเดียวหลังหน้า Loading ก่อนเข้าสู่หน้า Login/Register
-/// ค่าที่เลือกจะถูกใช้เป็นค่าเริ่มต้นตอนสมัครสมาชิกครั้งแรก
 class LanguageSetupScreen extends StatefulWidget {
   const LanguageSetupScreen({super.key});
 
@@ -26,19 +24,19 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
     if (_saving) return;
     setState(() => _saving = true);
 
-    await context
-        .read<DataService>()
-        .completeSetup(language: _language, currency: _currency);
+    final service = context.read<DataService>();
+    await service.updateProfile(language: _language, currency: _currency);
 
     if (!mounted) return;
     Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        context, MaterialPageRoute(builder: (_) => const HomeScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<DataService>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -48,24 +46,27 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
               children: [
                 const HeaderIconBadge(icon: Icons.tune_rounded),
                 const SizedBox(height: 20),
-                const Text('ตั้งค่าเริ่มต้น',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(service.t('setup_title'),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 const SizedBox(height: 6),
-                Text('เลือกภาษาและสกุลเงินที่คุณต้องการใช้',
+                Text(service.t('setup_desc'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                 const SizedBox(height: 40),
                 _dropdownRow(
                   icon: Icons.language_rounded,
-                  label: 'ภาษา',
+                  label: service.t('language_label'),
                   value: _language,
                   items: _languages,
-                  onChanged: (v) => setState(() => _language = v!),
+                  onChanged: (v) {
+                    setState(() => _language = v!);
+                    context.read<DataService>().setLanguage(v!);
+                  },
                 ),
                 const SizedBox(height: 16),
                 _dropdownRow(
                   icon: Icons.payments_outlined,
-                  label: 'สกุลเงิน',
+                  label: service.t('currency_label'),
                   value: _currency,
                   items: _currencies,
                   onChanged: (v) => setState(() => _currency = v!),
@@ -74,7 +75,7 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
                 SizedBox(
                   width: 220,
                   child: PrimaryButton(
-                    label: 'ถัดไป',
+                    label: service.t('next'),
                     loading: _saving,
                     onPressed: _next,
                   ),
@@ -102,12 +103,12 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.grey.shade600),
+          Icon(icon, size: 20, color: AppColors.textSecondary),
           const SizedBox(width: 10),
           SizedBox(
             width: 76,
             child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.textPrimary)),
           ),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -115,6 +116,8 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
                 value: value,
                 isExpanded: true,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
+                dropdownColor: AppColors.bg,
+                style: TextStyle(color: AppColors.textPrimary),
                 items: items
                     .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                     .toList(),

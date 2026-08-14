@@ -16,12 +16,13 @@ class GoalSavingScreen extends StatelessWidget {
     final service = context.watch<DataService>();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Goal Saving', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('goal_saving'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -36,26 +37,26 @@ class GoalSavingScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
+                        color: AppColors.accentBg,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(Icons.account_balance_wallet_rounded,
-                          color: Colors.orange.shade700, size: 18),
+                          color: AppColors.ink, size: 18),
                     ),
                     const SizedBox(width: 10),
-                    const Text('BUDGETMATE\nLedger Balance',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    Text(service.t('ledger_balance'),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text('฿${service.balance.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
               ],
             ),
           ),
           const SizedBox(height: 20),
           if (service.goals.isEmpty)
-            const EmptyState(icon: Icons.savings_outlined, text: 'ยังไม่มีเป้าหมายการออม')
+            EmptyState(icon: Icons.savings_outlined, text: service.t('no_goals'))
           else
             GridView.builder(
               shrinkWrap: true,
@@ -93,10 +94,10 @@ class GoalSavingScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: AppColors.bg,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(g.icon, color: Colors.deepPurple, size: 18),
+                                child: Icon(g.icon, color: AppColors.accentDeep, size: 18),
                               ),
                               const Spacer(),
                               if (g.status == GoalStatus.completed)
@@ -104,25 +105,25 @@ class GoalSavingScreen extends StatelessWidget {
                                     color: AppColors.success, size: 18)
                               else
                                 Icon(Icons.add_circle_outline_rounded,
-                                    color: Colors.deepPurple, size: 18),
+                                    color: AppColors.accentDeep, size: 18),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Text(g.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
                           const Spacer(),
                           Text('฿${g.savedAmount.toStringAsFixed(0)} / ฿${g.targetAmount.toStringAsFixed(0)}',
-                              style: const TextStyle(fontSize: 12.5)),
+                              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
                           const SizedBox(height: 8),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(6),
                             child: LinearProgressIndicator(
                               value: g.progress,
                               minHeight: 7,
-                              backgroundColor: Colors.grey.shade300,
-                              color: g.progress >= 1 ? AppColors.success : Colors.black,
+                              backgroundColor: AppColors.border,
+                              color: g.progress >= 1 ? AppColors.success : AppColors.accentDeep,
                             ),
                           ),
                         ],
@@ -136,7 +137,7 @@ class GoalSavingScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.orange,
+        backgroundColor: AppColors.accentDeep,
         elevation: 0,
         onPressed: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const AddGoalSavingScreen())),
@@ -148,13 +149,10 @@ class GoalSavingScreen extends StatelessWidget {
 }
 
 /// เปิด dialog ให้ผู้ใช้กรอกจำนวนเงินที่ต้องการ "โอนเงินจริง" เข้าเป้าหมาย [goal]
-/// เมื่อกดยืนยัน จะเรียก [DataService.transferToGoal] ซึ่งหักยอดจาก Ledger Balance
-/// (บันทึกเป็นรายจ่ายอัตโนมัติ) และเพิ่มยอดออมสะสมของเป้าหมายพร้อมกัน
 Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
   final service = context.read<DataService>();
   final controller = TextEditingController();
   final remaining = (goal.targetAmount - goal.savedAmount).clamp(0, goal.targetAmount).toDouble();
-  // จำนวนสูงสุดที่โอนได้จริงตอนนี้ ถูกจำกัดด้วยทั้งยอดที่ยังขาดอยู่ของเป้าหมาย และ Ledger Balance คงเหลือ
   final maxTransferable = remaining < service.balance ? remaining : service.balance;
 
   await showDialog(
@@ -178,7 +176,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
           Future<void> submit() async {
             final amount = double.tryParse(controller.text.trim()) ?? 0;
             if (amount <= 0) {
-              setState(() => errorText = 'กรุณากรอกจำนวนเงินให้ถูกต้อง');
+              setState(() => errorText = service.t('enter_valid_amount'));
               return;
             }
             setState(() {
@@ -197,7 +195,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
           }
 
           return Dialog(
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.bg,
             insetPadding: const EdgeInsets.symmetric(horizontal: 24),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
             child: Padding(
@@ -212,21 +210,21 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                         width: 46,
                         height: 46,
                         decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade50,
+                          color: AppColors.accentBg,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(goal.icon, color: Colors.deepPurple, size: 22),
+                        child: Icon(goal.icon, color: AppColors.accentDeep, size: 22),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('เติมเงินเข้าเป้าหมาย',
-                                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text(service.t('deposit_title'),
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                             Text(goal.name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                           ],
@@ -236,7 +234,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                         visualDensity: VisualDensity.compact,
                         onPressed: submitting ? null : () => Navigator.pop(dialogContext),
                         icon: const Icon(Icons.close_rounded, size: 20),
-                        color: Colors.grey.shade500,
+                        color: AppColors.textSecondary,
                       ),
                     ],
                   ),
@@ -245,16 +243,16 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                     children: [
                       Expanded(
                         child: _InfoStat(
-                          label: 'Ledger คงเหลือ',
+                          label: service.t('ledger_remaining'),
                           value: '฿${service.balance.toStringAsFixed(2)}',
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _InfoStat(
-                          label: 'ต้องการอีก',
+                          label: service.t('needed_more'),
                           value: '฿${remaining.toStringAsFixed(2)}',
-                          valueColor: Colors.deepPurple,
+                          valueColor: AppColors.accentDeep,
                         ),
                       ),
                     ],
@@ -265,7 +263,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                     hint: '0.00',
                     autofocus: true,
                     prefixText: '฿ ',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
@@ -282,20 +280,20 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                     children: [
                       if (maxTransferable > 0) ...[
                         _QuickAmountChip(
-                          label: '25%',
+                          label: service.t('quarter'),
                           onTap: () => applyQuickAmount(maxTransferable * 0.25),
                         ),
                         _QuickAmountChip(
-                          label: '50%',
+                          label: service.t('half'),
                           onTap: () => applyQuickAmount(maxTransferable * 0.5),
                         ),
                         _QuickAmountChip(
-                          label: 'เต็มจำนวนที่ขาด',
+                          label: service.t('full_remaining'),
                           onTap: () => applyQuickAmount(maxTransferable.toDouble()),
                           emphasized: true,
                         ),
                       ] else
-                        Text('Ledger Balance ไม่พอสำหรับโอนเข้าเป้าหมายนี้',
+                        Text(service.t('insufficient_balance'),
                             style: TextStyle(color: AppColors.danger, fontSize: 12.5)),
                     ],
                   ),
@@ -311,8 +309,8 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                                 borderRadius: BorderRadius.circular(AppRadius.md)),
                           ),
                           onPressed: submitting ? null : () => Navigator.pop(dialogContext),
-                          child: const Text('ยกเลิก',
-                              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                          child: Text(service.t('cancel'),
+                              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -326,13 +324,13 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                           ),
                           onPressed: submitting ? null : submit,
                           child: submitting
-                              ? const SizedBox(
+                              ? SizedBox(
                                   height: 16,
                                   width: 16,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : const Text('โอนเงิน',
-                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                                      strokeWidth: 2, color: AppColors.inkOn))
+                              : Text(service.t('transfer'),
+                                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.inkOn)),
                         ),
                       ),
                     ],
@@ -366,11 +364,11 @@ class _InfoStat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
           const SizedBox(height: 3),
           Text(value,
               style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.bold, color: valueColor ?? Colors.black87),
+                  fontSize: 14, fontWeight: FontWeight.bold, color: valueColor ?? AppColors.textPrimary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -390,7 +388,7 @@ class _QuickAmountChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: emphasized ? Colors.deepPurple.shade50 : AppColors.surface,
+      color: emphasized ? AppColors.accentBg : AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.pill),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -402,7 +400,7 @@ class _QuickAmountChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: emphasized ? Colors.deepPurple : Colors.black87,
+              color: emphasized ? AppColors.accentDeep : AppColors.textPrimary,
             ),
           ),
         ),

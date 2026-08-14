@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/data_service.dart';
 
-
-/// หน้า Forgot Password - รีเซ็ตรหัสผ่านด้วยอีเมล
-/// หมายเหตุ: แอปนี้เก็บข้อมูลใน SQLite ภายในเครื่องเท่านั้น (ไม่มีระบบส่งอีเมลจริง)
-/// จึงให้ผู้ใช้กรอกอีเมลเพื่อยืนยันตัวตน แล้วตั้งรหัสผ่านใหม่ได้ทันที
+/// หน้า Forgot Password - รีเซ็ตรหัสผ่านผ่าน Firebase Authentication
+/// (ผู้ใช้กรอกแค่อีเมล ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ทางอีเมลโดยตรง
+/// จึงไม่ต้องกรอกรหัสผ่านใหม่ในแอปอีกต่อไป)
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -16,41 +15,18 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailCtrl = TextEditingController();
-  final _newPassCtrl = TextEditingController();
-  final _confirmPassCtrl = TextEditingController();
   String? _error;
   String? _success;
   bool _loading = false;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
 
   Future<void> _handleReset() async {
     if (_loading) return;
+    final service = context.read<DataService>();
 
-    if (_emailCtrl.text.trim().isEmpty) {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
       setState(() {
-        _error = 'กรุณากรอกอีเมล';
-        _success = null;
-      });
-      return;
-    }
-    if (_newPassCtrl.text.isEmpty) {
-      setState(() {
-        _error = 'กรุณากรอกรหัสผ่านใหม่';
-        _success = null;
-      });
-      return;
-    }
-    if (_newPassCtrl.text.length < 6) {
-      setState(() {
-        _error = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
-        _success = null;
-      });
-      return;
-    }
-    if (_newPassCtrl.text != _confirmPassCtrl.text) {
-      setState(() {
-        _error = 'รหัสผ่านไม่ตรงกัน';
+        _error = service.t('enter_email');
         _success = null;
       });
       return;
@@ -62,19 +38,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _success = null;
     });
 
-    final service = context.read<DataService>();
-    final error = await service.resetPassword(
-        _emailCtrl.text.trim(), _newPassCtrl.text);
+    // ส่งลิงก์รีเซ็ตรหัสผ่านผ่าน Firebase Authentication (sendPasswordResetEmail)
+    final error = await service.resetPassword(email);
 
     if (!mounted) return;
 
     if (error == null) {
       setState(() {
         _loading = false;
-        _success = 'ตั้งรหัสผ่านใหม่สำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่';
+        _success = service.t('reset_email_sent');
       });
-      _newPassCtrl.clear();
-      _confirmPassCtrl.clear();
     } else {
       setState(() {
         _loading = false;
@@ -85,13 +58,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final service = context.watch<DataService>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('ลืมรหัสผ่าน', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('forgot_password_title'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: SafeArea(
         child: Center(
@@ -103,43 +78,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(height: 8),
                 const HeaderIconBadge(icon: Icons.lock_reset_rounded),
                 const SizedBox(height: 20),
-                const Text('ตั้งรหัสผ่านใหม่',
+                Text(service.t('reset_password_heading'),
                     textAlign: TextAlign.center, style: AppTextStyles.title),
                 const SizedBox(height: 8),
                 Text(
-                  'กรอกอีเมลที่ใช้สมัครสมาชิก แล้วตั้งรหัสผ่านใหม่ได้เลย',
+                  service.t('reset_password_desc'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5, height: 1.4),
                 ),
                 const SizedBox(height: 32),
 
-                _fieldLabel('อีเมล'),
+                _fieldLabel(service.t('email')),
                 AppTextField(
                   controller: _emailCtrl,
                   hint: 'you@example.com',
                   icon: Icons.mail_outline_rounded,
                   keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 18),
-
-                _fieldLabel('รหัสผ่านใหม่'),
-                AppTextField(
-                  controller: _newPassCtrl,
-                  hint: 'อย่างน้อย 6 ตัวอักษร',
-                  icon: Icons.lock_outline_rounded,
-                  obscureText: _obscureNew,
-                  toggleObscure: () => setState(() => _obscureNew = !_obscureNew),
-                ),
-                const SizedBox(height: 18),
-
-                _fieldLabel('ยืนยันรหัสผ่านใหม่'),
-                AppTextField(
-                  controller: _confirmPassCtrl,
-                  hint: 'กรอกรหัสผ่านอีกครั้ง',
-                  icon: Icons.lock_outline_rounded,
-                  obscureText: _obscureConfirm,
-                  toggleObscure: () =>
-                      setState(() => _obscureConfirm = !_obscureConfirm),
+                  onChanged: (_) {
+                    if (_error != null || _success != null) {
+                      setState(() {
+                        _error = null;
+                        _success = null;
+                      });
+                    }
+                  },
                 ),
 
                 if (_error != null) ...[
@@ -153,7 +115,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                 const SizedBox(height: 28),
                 PrimaryButton(
-                  label: 'ตั้งรหัสผ่านใหม่',
+                  label: service.t('reset_password_heading'),
                   loading: _loading,
                   onPressed: _handleReset,
                 ),
@@ -161,9 +123,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 Center(
                   child: TextButton(
                     onPressed: _loading ? null : () => Navigator.pop(context),
-                    child: Text('กลับไปหน้าเข้าสู่ระบบ',
+                    child: Text(service.t('back_to_login'),
                         style: TextStyle(
-                            color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                            color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -177,6 +139,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Widget _fieldLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8, left: 4),
-        child: Text(text, style: AppTextStyles.label.copyWith(color: Colors.grey.shade800)),
+        child: Text(text, style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
       );
 }

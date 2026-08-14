@@ -26,12 +26,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final list = _showAll ? all : service.transactionsForDay(today);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bg,
         elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
+        foregroundColor: AppColors.textPrimary,
+        title: Text(service.t('history'),
+            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       ),
       body: Column(
         children: [
@@ -39,15 +40,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                _filterChip('All', _showAll, () => setState(() => _showAll = true)),
+                _filterChip(service.t('filter_all'), _showAll, () => setState(() => _showAll = true)),
                 const SizedBox(width: 8),
-                _filterChip('Daily', !_showAll, () => setState(() => _showAll = false)),
+                _filterChip(service.t('filter_daily'), !_showAll, () => setState(() => _showAll = false)),
               ],
             ),
           ),
           Expanded(
             child: list.isEmpty
-                ? const EmptyState(icon: Icons.receipt_long_outlined, text: 'ยังไม่มีรายการ')
+                ? EmptyState(icon: Icons.receipt_long_outlined, text: service.t('no_transactions'))
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: list.length,
@@ -71,12 +72,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
         decoration: BoxDecoration(
-          color: selected ? Colors.black : AppColors.surface,
+          color: selected ? AppColors.accentDeep : AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Text(label,
             style: TextStyle(
-                color: selected ? Colors.white : Colors.black87,
+                color: selected ? Colors.white : AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13)),
       ),
@@ -107,7 +108,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: Icon(t.category.icon,
                 color: isIncome ? AppColors.income : AppColors.expense),
           ),
-          title: Text(t.category.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+          title: Text(service.categoryName(t.category),
+              style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           subtitle: Text(
               '${DateFormat('d MMM yyyy').format(t.date)}${t.note != null ? ' • ${t.note}' : ''}',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
