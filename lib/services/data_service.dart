@@ -30,6 +30,12 @@ const _successNotesKey = 'budgetmate_success_notes_enabled';
 /// - สถานะล็อกอินถูกจำไว้โดย Firebase Authentication เองโดยอัตโนมัติ จึงไม่ต้อง
 ///   ล็อกอินใหม่ทุกครั้งที่เปิดแอป
 class DataService extends ChangeNotifier {
+  // ⚠️ DEBUG/ทดสอบ UI ชั่วคราว: ตั้งเป็น true เพื่อ "ข้าม" การเขียนข้อมูลลง Firestore
+  // ทุกครั้ง ให้ทำงานกับ local state ในแอปอย่างเดียวแทน (กดบันทึกแล้วเห็นหน้าถัดไปทันที
+  // ไม่ต้องรอ/พึ่งการเชื่อมต่อฐานข้อมูลจริง) — เมื่อแก้ปัญหาเชื่อมต่อ Firestore
+  // (Security Rules / เครือข่าย) เสร็จแล้ว ให้เปลี่ยนกลับเป็น false เพื่อบันทึกข้อมูลจริง
+  static const bool offlineMode = true;
+
   final _uuid = const Uuid();
   final _db = DBHelper.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
@@ -115,11 +121,17 @@ class DataService extends ChangeNotifier {
     // จึงเช็คแค่ว่ามีผู้ใช้ที่ล็อกอินค้างอยู่หรือไม่ แล้วโหลดโปรไฟล์ที่ตรงกันจาก Firestore
     final fbUser = FirebaseAuth.instance.currentUser;
     if (fbUser != null) {
-      final rows = await _db.query('users', where: 'id = ?', whereArgs: [fbUser.uid]);
-      if (rows.isNotEmpty) {
-        currentUser = UserModel.fromMap(rows.first);
-        avatarPath = prefs.getString('avatar_path_${currentUser!.id}');
-        await _loadUserData();
+      try {
+        final rows = await _db.query('users', where: 'id = ?', whereArgs: [fbUser.uid]);
+        if (rows.isNotEmpty) {
+          currentUser = UserModel.fromMap(rows.first);
+          avatarPath = prefs.getString('avatar_path_${currentUser!.id}');
+          await _loadUserData();
+        }
+      } catch (e) {
+        // เชื่อมต่อ Firestore ไม่ได้ตอนเปิดแอป (เน็ตช้า/หลุด) - ปล่อยให้เข้าหน้า Login
+        // ตามปกติแทนที่จะค้างที่ Loading ตลอดไป ผู้ใช้ล็อกอินใหม่ได้เองเมื่อเน็ตกลับมา
+        currentUser = null;
       }
     }
     isReady = true;
@@ -520,37 +532,10 @@ class DataService extends ChangeNotifier {
       description: description,
       receiptPath: receiptPath,
     );
-    await _db.insert('transactions', tx.toMap(currentUser!.id));
+    if (!offlineMode) {
+      await _db.insert('transactions', tx.toMap(currentUser!.id));
+    }
     _transactions.add(tx);
-    notifyListeners();
-  }
-
-  /// เพิ่มหลายรายการพร้อมกันในครั้งเดียว (ใช้ตอนกด Save ในหน้า Add Income/Expense
-  /// ที่ผู้ใช้อาจเพิ่มไว้หลายรายการก่อนกดบันทึก) ยิง network request ครั้งเดียวผ่าน
-  /// insertBatch แทนการวนลูป await ทีละรายการ ทำให้เร็วขึ้นมากเมื่อมีหลายรายการ
-  Future<void> addTransactionsBatch(
-    List<({CategoryType type, double amount, CategoryModel category, String? note})> items,
-  ) async {
-    if (currentUser == null || items.isEmpty) return;
-    final now = DateTime.now();
-
-    final newTx = items
-        .map((item) => TransactionModel(
-              id: _uuid.v4(),
-              type: item.type,
-              amount: item.amount,
-              category: item.category,
-              date: now,
-              note: item.note,
-            ))
-        .toList();
-
-    await _db.insertBatch(
-      'transactions',
-      newTx.map((tx) => tx.toMap(currentUser!.id)).toList(),
-    );
-
-    _transactions.addAll(newTx);
     notifyListeners();
   }
 
@@ -599,14 +584,17 @@ class DataService extends ChangeNotifier {
   // =========================================================
   // 1.3.2 ระบบตั้งเป้าหมายการออม (Goal Saving)
   // =========================================================
-  Future<void> addGoal({
+  /// คืนค่า null หากบันทึกสำเร็จ หรือข้อความ error หากบันทึกไม่สำเร็จ (เช่น
+  /// เชื่อมต่อฐานข้อมูลไม่ได้/หมดเวลา) เดิมเมธอดนี้ปล่อยให้ exception จาก _db.insert
+  /// หลุดออกไปแบบ unhandled ทำให้แอป crash และหน้าจอผู้เรียกค้างสถานะ loading ตลอดไป
+  Future<String?> addGoal({
     required String name,
     required double targetAmount,
     required DateTime targetDate,
     required IconData icon,
     double savedAmount = 0,
   }) async {
-    if (currentUser == null) return;
+    if (currentUser == null) return t('please_login_first');
     final goal = GoalModel(
       id: _uuid.v4(),
       name: name,
@@ -616,9 +604,14 @@ class DataService extends ChangeNotifier {
       targetDate: targetDate,
       icon: icon,
     );
-    await _db.insert('goals', goal.toMap(currentUser!.id));
+    try {
+      await _db.insert('goals', goal.toMap(currentUser!.id));
+    } catch (e) {
+      return '${t('save_failed')}: $e';
+    }
     _goals.add(goal);
     notifyListeners();
+    return null;
   }
 
   /// เพิ่มเงินออมเข้าเป้าหมาย และอัปเดตสถานะอัตโนมัติเมื่อถึงเป้าหมาย
@@ -651,6 +644,7 @@ class DataService extends ChangeNotifier {
       type: CategoryType.expense,
       icon: Icons.savings,
       description: 'หมวดหมู่รายจ่ายสำหรับการโอนเงินเข้าเป้าหมายการออม (สร้างอัตโนมัติ)',
+      imagePath: 'assets/images/categories/c17.png',
     );
     await _db.insert('categories', category.toMap());
     categories.add(category);

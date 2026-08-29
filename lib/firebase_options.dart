@@ -5,15 +5,6 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -53,17 +44,15 @@ class DefaultFirebaseOptions {
     projectId: 'budgetmate-app-a94da',
     storageBucket: 'budgetmate-app-a94da.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD_bR-20sEJp6CpbU7Bgh9poAtBHnsMREQ',
-    appId: '1:636277696280:ios:5c02afbb198561fca1206d',
+    appId: '1:636277696280:ios:15564d6417db857fa1206d',
     messagingSenderId: '636277696280',
     projectId: 'budgetmate-app-a94da',
     storageBucket: 'budgetmate-app-a94da.firebasestorage.app',
-    iosClientId: '636277696280-uu3s353g6un9d3mov24m31j336fr0vio.apps.googleusercontent.com',
-    iosBundleId: 'com.example.flutterApplication1',
+    iosClientId: '636277696280-2r1tehf0qj7okml610e5t7909q1sonve.apps.googleusercontent.com',
+    iosBundleId: 'com.promporn.budgetmate',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD_bR-20sEJp6CpbU7Bgh9poAtBHnsMREQ',
     appId: '1:636277696280:ios:5c02afbb198561fca1206d',

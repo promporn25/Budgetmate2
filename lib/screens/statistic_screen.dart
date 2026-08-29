@@ -2,9 +2,11 @@ import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../models/category_model.dart';
 import '../services/data_service.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/period_selector.dart';
+import 'home_screen.dart';
 
 const List<String> _thaiMonthsShort = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -43,6 +45,12 @@ class _StatisticScreenState extends State<StatisticScreen> {
     }
   }
 
+  dynamic _topGoal(DataService service) {
+    if (service.goals.isEmpty) return null;
+    final sorted = [...service.goals]..sort((a, b) => b.progress.compareTo(a.progress));
+    return sorted.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.watch<DataService>();
@@ -52,18 +60,31 @@ class _StatisticScreenState extends State<StatisticScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary,
-        title: Text(service.t('statistic_title'),
-            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Column(
+        children: [
+          AppHeader(
+            title: service.t('statistic_title'),
+            onBack: () => Navigator.pushReplacement(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => const HomeScreen(),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            ),
+          ),
+          Expanded(
+            // ห่อด้วย RefreshIndicator กันไม่ให้ดึงหน้าจอเกินขอบบนแล้วเห็นพื้นที่ว่างสีขาว
+            child: RefreshIndicator(
+              color: AppColors.accentDeep,
+              backgroundColor: AppColors.card,
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Text(service.t('income_expense'), style: AppTextStyles.heading),
             const SizedBox(height: 12),
             PeriodFilterBar(
@@ -110,7 +131,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                         lineBarsData: [
                           LineChartBarData(
                             isCurved: true,
-                            color: AppColors.accent,
+                            color: AppColors.accentDeep,
                             barWidth: 3,
                             dotData: const FlDotData(show: false),
                             spots: List.generate(series.length,
@@ -118,7 +139,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                           ),
                           LineChartBarData(
                             isCurved: true,
-                            color: AppColors.accentDeep,
+                            color: AppColors.accentPink,
                             barWidth: 3,
                             dotData: const FlDotData(show: false),
                             spots: List.generate(series.length,
@@ -131,9 +152,11 @@ class _StatisticScreenState extends State<StatisticScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      _legendDot(AppColors.accent, '${service.t('income')} ${pct['income']!.toStringAsFixed(0)}%'),
+                      _legendDot(AppColors.income,
+                          '${service.t('income')} ${pct['income']!.toStringAsFixed(0)}%', true),
                       const SizedBox(width: 16),
-                      _legendDot(AppColors.accentDeep, '${service.t('expense')} ${pct['expense']!.toStringAsFixed(0)}%'),
+                      _legendDot(AppColors.expense,
+                          '${service.t('expense')} ${pct['expense']!.toStringAsFixed(0)}%', false),
                     ],
                   ),
                 ],
@@ -151,7 +174,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                         color: AppColors.bg,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(mostSpent.key.icon, color: AppColors.accentDeep),
+                      child: CategoryIcon(category: mostSpent.key, color: AppColors.accentDeep),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -174,6 +197,8 @@ class _StatisticScreenState extends State<StatisticScreen> {
             const SizedBox(height: 28),
             Text(service.t('goal_saving'), style: AppTextStyles.heading),
             const SizedBox(height: 12),
+            if (service.goals.isNotEmpty) _FeaturedGoalCard(goal: _topGoal(service)!, service: service),
+            if (service.goals.isNotEmpty) const SizedBox(height: 16),
             if (service.goals.isEmpty)
               EmptyState(icon: Icons.savings_outlined, text: service.t('no_goals'))
             else
@@ -220,29 +245,127 @@ class _StatisticScreenState extends State<StatisticScreen> {
                           if (g.isNearTarget)
                             Padding(
                               padding: const EdgeInsets.only(top: 6),
-                              child: Text(service.t('near_target'),
-                                  style: TextStyle(color: AppColors.ink, fontSize: 12)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CuteMascot(kind: CuteMascotKind.bell, color: AppColors.ink, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(service.t('near_target'),
+                                      style: TextStyle(color: AppColors.ink, fontSize: 12)),
+                                ],
+                              ),
                             ),
                         ],
                       ),
                     ),
                   )),
             const SizedBox(height: 80),
-          ],
-        ),
+                ],
+              ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 3),
     );
   }
 
-  Widget _legendDot(Color color, String label) {
+  Future<void> _onRefresh() async {
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) setState(() {});
+  }
+
+  Widget _legendDot(Color color, String label, bool isIncome) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        CuteMascot(
+            kind: isIncome ? CuteMascotKind.income : CuteMascotKind.expense, color: color, size: 14),
         const SizedBox(width: 6),
         Text(label, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
       ],
+    );
+  }
+}
+
+/// การ์ดไฮไลต์เป้าหมายที่คืบหน้ามากที่สุด (โทนมินต์) แทนที่จะแสดงแค่ในลิสต์ปกติ
+/// ให้ผู้ใช้เห็นเป้าหมายที่ใกล้สำเร็จที่สุดเด่นชัดตั้งแต่แรก ตามดีไซน์อ้างอิง
+class _FeaturedGoalCard extends StatelessWidget {
+  final dynamic goal; // GoalModel
+  final DataService service;
+  const _FeaturedGoalCard({required this.goal, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (goal.progress * 100).clamp(0, 100).toStringAsFixed(0);
+    final near = goal.isNearTarget as bool;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 12, 18),
+      decoration: BoxDecoration(
+        color: AppColors.successBg,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Stack(
+        children: [
+          // มาสคอตตกแต่งมุมขวา (placeholder จนกว่าจะมี asset จริง) ไม่บังข้อความ/progress bar
+          Positioned(
+            right: 0,
+            top: 4,
+            child: Opacity(
+              opacity: 0.9,
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: Icon(Icons.favorite_rounded, color: AppColors.accentPink, size: 22),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 46),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Goal Progress',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                    const SizedBox(width: 6),
+                    const Text('🌸', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  near ? service.t('near_target') : goal.name,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        child: LinearProgressIndicator(
+                          value: goal.progress,
+                          minHeight: 10,
+                          backgroundColor: Colors.white,
+                          color: AppColors.accentDeep,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('$pct%',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

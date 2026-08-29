@@ -31,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "636277696280-uu3s353g6un9d3mov24m31j336fr0vio.apps.googleusercontent.com",
+              "client_id": "636277696280-2r1tehf0qj7okml610e5t7909q1sonve.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.flutterApplication1"
+                "bundle_id": "com.promporn.budgetmate"
               }
             }
           ]

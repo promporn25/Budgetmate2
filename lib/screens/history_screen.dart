@@ -47,22 +47,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
           Expanded(
-            child: list.isEmpty
-                ? EmptyState(icon: Icons.receipt_long_outlined, text: service.t('no_transactions'))
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final t = list[index];
-                      return _transactionTile(context, t, service);
-                    },
-                  ),
+            child: RefreshIndicator(
+              color: AppColors.accentDeep,
+              backgroundColor: AppColors.card,
+              onRefresh: _onRefresh,
+              child: list.isEmpty
+                  // ListView ว่างเปล่ายังต้องใส่ physics แบบ Always... ไม่งั้นจะดึง
+                  // เพื่อรีเฟรชไม่ได้เลยเพราะไม่มีเนื้อหาให้เลื่อน
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            text: service.t('no_transactions')),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final t = list[index];
+                        return _transactionTile(context, t, service);
+                      },
+                    ),
+            ),
           ),
         ],
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 0),
     );
+  }
+
+  Future<void> _onRefresh() async {
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) setState(() {});
   }
 
   Widget _filterChip(String label, bool selected, VoidCallback onTap) {
@@ -105,7 +125,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           contentPadding: EdgeInsets.zero,
           leading: CircleAvatar(
             backgroundColor: isIncome ? AppColors.incomeBg : AppColors.expenseBg,
-            child: Icon(t.category.icon,
+            child: CategoryIcon(category: t.category,
                 color: isIncome ? AppColors.income : AppColors.expense),
           ),
           title: Text(service.categoryName(t.category),

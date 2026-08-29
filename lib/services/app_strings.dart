@@ -1,6 +1,3 @@
-/// AppStrings - พจนานุกรมคำแปลกลางของแอป BUDGETMATE
-/// ใช้ผ่าน DataService.t('key') เพื่อให้ทุกหน้าที่ watch<DataService>()
-/// เปลี่ยนภาษาได้ทันทีทั้งแอปเมื่อผู้ใช้เปลี่ยนค่า language (ไม่ต้อง restart)
 class AppStrings {
   AppStrings._();
 
@@ -85,7 +82,7 @@ class AppStrings {
     // ---------------- Statistic ----------------
     'statistic_title': 'สถิติ',
     'most_spent_category': 'หมวดหมู่ที่ใช้จ่ายมากที่สุด',
-    'near_target': '🔔 ใกล้ถึงเป้าหมายแล้ว!',
+    'near_target': 'ใกล้ถึงเป้าหมายแล้ว!',
 
     // ---------------- Period Filter (Home / Statistic) ----------------
     'expense_trend': 'แนวโน้มรายจ่าย',
@@ -292,7 +289,7 @@ class AppStrings {
 
     'statistic_title': 'Statistic',
     'most_spent_category': 'Most spent category',
-    'near_target': '🔔 Almost there!',
+    'near_target': 'Almost there!',
 
     // ---------------- Period Filter (Home / Statistic) ----------------
     'expense_trend': 'Expense Trend',

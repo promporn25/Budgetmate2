@@ -24,6 +24,7 @@ dependencies:
   cloud_firestore: ^5.4.4
   firebase_auth: ^5.3.1
   google_sign_in: ^6.2.1
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +36,19 @@ flutter:
   assets:
     - assets/images/loading.gif
     - assets/images/google_logo.png
+    - assets/images/categories/
+  fonts:
+    - family: Mali
+      fonts:
+        - asset: assets/fonts/Mali-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/Mali-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Mali-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Mali-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Mali-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Mali-Bold.ttf
+          weight: 700

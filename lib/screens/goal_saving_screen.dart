@@ -7,6 +7,24 @@ import '../services/data_service.dart';
 import '../widgets/bottom_nav.dart';
 import 'add_goal_saving_screen.dart';
 
+// ชุดสีพาสเทลสลับให้การ์ดเป้าหมายแต่ละใบมีโทนต่างกัน (ไม่จืดซ้ำสีเดียวทั้งกริด)
+const List<Color> _goalTint = [
+  Color(0xFFDCEEF7), // ฟ้าอ่อน
+  Color(0xFFFBEED0), // เหลืองพีชอ่อน
+  Color(0xFFF6E1E7), // ชมพูอ่อน
+  Color(0xFFE1EFF8), // ฟ้ากลางอ่อน
+  Color(0xFFE8F3E3), // มินต์อ่อน
+  Color(0xFFEFE7FA), // ม่วงลาเวนเดอร์อ่อน
+];
+const List<Color> _goalTintDeep = [
+  Color(0xFF3D568F),
+  Color(0xFFC79A3B),
+  Color(0xFFC08B9D),
+  Color(0xFF5C86C4),
+  Color(0xFF4E9B6E),
+  Color(0xFF8B6FC4),
+];
+
 /// หน้า Goal Saving (3.4.11) - กำหนดและติดตามเป้าหมายการออมเงิน
 class GoalSavingScreen extends StatelessWidget {
   const GoalSavingScreen({super.key});
@@ -21,37 +39,98 @@ class GoalSavingScreen extends StatelessWidget {
         backgroundColor: AppColors.bg,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
-        title: Text(service.t('goal_saving'),
-            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(service.t('goal_saving'),
+                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(width: 6),
+            const Text('🐷', style: TextStyle(fontSize: 16)),
+          ],
+        ),
       ),
-      body: ListView(
+      // ห่อด้วย RefreshIndicator กันไม่ให้ดึงหน้าจอเกินขอบบนแล้วเห็นพื้นที่ว่างสีขาว
+      body: RefreshIndicator(
+        color: AppColors.accentDeep,
+        backgroundColor: AppColors.card,
+        onRefresh: () async {
+          await Future.delayed(const Duration(milliseconds: 600));
+        },
+        child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          AppCard(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.account_balance_wallet_rounded,
-                          color: AppColors.ink, size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(service.t('ledger_balance'),
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                  ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.accentDeep, AppColors.accent],
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.accentDeep.withOpacity(0.28),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
-                const SizedBox(height: 10),
-                Text('฿${service.balance.toStringAsFixed(2)}',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
               ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    right: -20,
+                    top: -26,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12), shape: BoxShape.circle),
+                    ),
+                  ),
+                  Positioned(
+                    right: 30,
+                    bottom: -30,
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.10), shape: BoxShape.circle),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.account_balance_wallet_rounded,
+                                color: AppColors.accentDeep, size: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(service.t('ledger_balance'),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text('฿${service.balance.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -82,68 +161,122 @@ class GoalSavingScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 20),
                     child: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
                   ),
-                  child: GestureDetector(
+                  child: _GoalCard(
+                    goal: g,
+                    tint: _goalTint[i % _goalTint.length],
+                    tintDeep: _goalTintDeep[i % _goalTintDeep.length],
                     onTap: () => _showDepositDialog(context, g),
-                    child: AppCard(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.bg,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(g.icon, color: AppColors.accentDeep, size: 18),
-                              ),
-                              const Spacer(),
-                              if (g.status == GoalStatus.completed)
-                                Icon(Icons.check_circle_rounded,
-                                    color: AppColors.success, size: 18)
-                              else
-                                Icon(Icons.add_circle_outline_rounded,
-                                    color: AppColors.accentDeep, size: 18),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(g.name,
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                          const Spacer(),
-                          Text('฿${g.savedAmount.toStringAsFixed(0)} / ฿${g.targetAmount.toStringAsFixed(0)}',
-                              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: g.progress,
-                              minHeight: 7,
-                              backgroundColor: AppColors.border,
-                              color: g.progress >= 1 ? AppColors.success : AppColors.accentDeep,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 );
               },
             ),
           const SizedBox(height: 80),
         ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.accentDeep,
         elevation: 0,
         onPressed: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const AddGoalSavingScreen())),
+            noAnimationRoute(const AddGoalSavingScreen())),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 1),
+    );
+  }
+}
+
+/// การ์ดเป้าหมายการออมแบบพาสเทลน่ารัก
+class _GoalCard extends StatelessWidget {
+  final GoalModel goal;
+  final Color tint;
+  final Color tintDeep;
+  final VoidCallback onTap;
+
+  const _GoalCard({
+    required this.goal,
+    required this.tint,
+    required this.tintDeep,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = goal.status == GoalStatus.completed;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: [
+            BoxShadow(
+              color: tintDeep.withOpacity(0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                right: -14,
+                top: -18,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(color: tintDeep.withOpacity(0.10), shape: BoxShape.circle),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          child: Icon(goal.icon, color: tintDeep, size: 17),
+                        ),
+                        const Spacer(),
+                        if (completed)
+                          Icon(Icons.check_circle_rounded, color: AppColors.success, size: 18)
+                        else if (goal.isNearTarget)
+                          Icon(Icons.star_rounded, color: tintDeep.withOpacity(0.8), size: 18)
+                        else
+                          Icon(Icons.add_circle_outline_rounded, color: tintDeep, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(goal.name,
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const Spacer(),
+                    Text('฿${goal.savedAmount.toStringAsFixed(0)} / ฿${goal.targetAmount.toStringAsFixed(0)}',
+                        style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      child: LinearProgressIndicator(
+                        value: goal.progress,
+                        minHeight: 7,
+                        backgroundColor: Colors.white.withOpacity(0.7),
+                        color: goal.progress >= 1 ? AppColors.success : tintDeep,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -157,7 +290,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
 
   await showDialog(
     context: context,
-    barrierColor: Colors.black.withOpacity(0.45),
+    barrierColor: Colors.black.withOpacity(0.5),
     builder: (dialogContext) {
       bool submitting = false;
       String? errorText;
@@ -195,145 +328,255 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
           }
 
           return Dialog(
-            backgroundColor: AppColors.bg,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.bg,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accentDeep.withOpacity(0.25),
+                    blurRadius: 30,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: AppColors.accentBg,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(goal.icon, color: AppColors.accentDeep, size: 22),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.accentDeep, AppColors.accent],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(28),
+                        topRight: Radius.circular(28),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
                           children: [
-                            Text(service.t('deposit_title'),
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                            Text(goal.name,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.12),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(goal.icon, color: AppColors.accentDeep, size: 25),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(service.t('deposit_title'),
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 2),
+                                  Text(goal.name,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold, fontSize: 17, color: Colors.white),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: submitting ? null : () => Navigator.pop(dialogContext),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.25),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: submitting ? null : () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        color: AppColors.textSecondary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _InfoStat(
-                          label: service.t('ledger_remaining'),
-                          value: '฿${service.balance.toStringAsFixed(2)}',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _InfoStat(
-                          label: service.t('needed_more'),
-                          value: '฿${remaining.toStringAsFixed(2)}',
-                          valueColor: AppColors.accentDeep,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  AppTextField(
-                    controller: controller,
-                    hint: '0.00',
-                    autofocus: true,
-                    prefixText: '฿ ',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                    ],
-                    errorText: errorText,
-                    onChanged: (_) {
-                      if (errorText != null) setState(() => errorText = null);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (maxTransferable > 0) ...[
-                        _QuickAmountChip(
-                          label: service.t('quarter'),
-                          onTap: () => applyQuickAmount(maxTransferable * 0.25),
-                        ),
-                        _QuickAmountChip(
-                          label: service.t('half'),
-                          onTap: () => applyQuickAmount(maxTransferable * 0.5),
-                        ),
-                        _QuickAmountChip(
-                          label: service.t('full_remaining'),
-                          onTap: () => applyQuickAmount(maxTransferable.toDouble()),
-                          emphasized: true,
-                        ),
-                      ] else
-                        Text(service.t('insufficient_balance'),
-                            style: TextStyle(color: AppColors.danger, fontSize: 12.5)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            side: BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md)),
+                        const SizedBox(height: 16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          child: LinearProgressIndicator(
+                            value: goal.progress,
+                            minHeight: 8,
+                            backgroundColor: Colors.white.withOpacity(0.35),
+                            color: Colors.white,
                           ),
-                          onPressed: submitting ? null : () => Navigator.pop(dialogContext),
-                          child: Text(service.t('cancel'),
-                              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.ink,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md)),
-                          ),
-                          onPressed: submitting ? null : submit,
-                          child: submitting
-                              ? SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: AppColors.inkOn))
-                              : Text(service.t('transfer'),
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.inkOn)),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                                '฿${goal.savedAmount.toStringAsFixed(0)} / ฿${goal.targetAmount.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                            Text('${(goal.progress * 100).toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _InfoStat(
+                                icon: Icons.account_balance_wallet_rounded,
+                                label: service.t('ledger_remaining'),
+                                value: '฿${service.balance.toStringAsFixed(2)}',
+                                bg: AppColors.accentBg,
+                                iconColor: AppColors.accentDeep,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _InfoStat(
+                                icon: Icons.flag_rounded,
+                                label: service.t('needed_more'),
+                                value: '฿${remaining.toStringAsFixed(2)}',
+                                bg: AppColors.accentAltBg,
+                                iconColor: const Color(0xFFC79A3B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Text(service.t('deposit_title'),
+                            style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+                        const SizedBox(height: 8),
+                        AppTextField(
+                          controller: controller,
+                          hint: '0.00',
+                          autofocus: true,
+                          prefixText: '฿ ',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.accentDeep),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
+                          errorText: errorText,
+                          onChanged: (_) {
+                            if (errorText != null) setState(() => errorText = null);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (maxTransferable > 0) ...[
+                              _QuickAmountChip(
+                                label: service.t('quarter'),
+                                onTap: () => applyQuickAmount(maxTransferable * 0.25),
+                              ),
+                              _QuickAmountChip(
+                                label: service.t('half'),
+                                onTap: () => applyQuickAmount(maxTransferable * 0.5),
+                              ),
+                              _QuickAmountChip(
+                                label: service.t('full_remaining'),
+                                icon: Icons.bolt_rounded,
+                                onTap: () => applyQuickAmount(maxTransferable.toDouble()),
+                                emphasized: true,
+                              ),
+                            ] else
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded, size: 15, color: AppColors.danger),
+                                  const SizedBox(width: 6),
+                                  Text(service.t('insufficient_balance'),
+                                      style: TextStyle(color: AppColors.danger, fontSize: 12.5)),
+                                ],
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: BorderSide(color: AppColors.border, width: 1.3),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(AppRadius.pill)),
+                                ),
+                                onPressed: submitting ? null : () => Navigator.pop(dialogContext),
+                                child: Text(service.t('cancel'),
+                                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                                  gradient: LinearGradient(
+                                    colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.82)],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.accentDeep.withOpacity(0.35),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(AppRadius.pill)),
+                                  ),
+                                  onPressed: submitting ? null : submit,
+                                  child: submitting
+                                      ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.savings_rounded, size: 18, color: Colors.white),
+                                            const SizedBox(width: 8),
+                                            Text(service.t('transfer'),
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold, color: Colors.white)),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -345,30 +588,43 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
   );
 }
 
-/// การ์ดข้อมูลเล็กๆ (Ledger คงเหลือ / ต้องการอีก) ในกล่องเติมเงินเข้าเป้าหมาย
+/// การ์ดข้อมูลเล็กๆ (Ledger คงเหลือ / ต้องการอีก)
 class _InfoStat extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
-  final Color? valueColor;
+  final Color bg;
+  final Color iconColor;
 
-  const _InfoStat({required this.label, required this.value, this.valueColor});
+  const _InfoStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.bg,
+    required this.iconColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
-          const SizedBox(height: 3),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: Icon(icon, size: 14, color: iconColor),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
           Text(value,
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.bold, color: valueColor ?? AppColors.textPrimary),
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
@@ -377,31 +633,46 @@ class _InfoStat extends StatelessWidget {
   }
 }
 
-/// ชิปเลือกจำนวนเงินด่วน (25% / 50% / เต็มจำนวนที่ขาด) ในกล่องเติมเงินเข้าเป้าหมาย
+/// ชิปเลือกจำนวนเงินด่วน (25% / 50% / เต็มจำนวนที่ขาด)
 class _QuickAmountChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool emphasized;
+  final IconData? icon;
 
-  const _QuickAmountChip({required this.label, required this.onTap, this.emphasized = false});
+  const _QuickAmountChip({
+    required this.label,
+    required this.onTap,
+    this.emphasized = false,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: emphasized ? AppColors.accentBg : AppColors.surface,
+      color: emphasized ? AppColors.accentDeep : AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.pill),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.pill),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: emphasized ? AppColors.accentDeep : AppColors.textPrimary,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: emphasized ? Colors.white : AppColors.accentDeep),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: emphasized ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
         ),
       ),

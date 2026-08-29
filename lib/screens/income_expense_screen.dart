@@ -8,14 +8,20 @@ import 'wallet_screen.dart';
 
 /// หน้า Income/Expense (3.4.9)
 class IncomeExpenseScreen extends StatelessWidget {
-  const IncomeExpenseScreen({super.key});
+  /// ตัวกรองเริ่มต้นตอนเปิดหน้า (ทั้งหมด / รายรับ / รายจ่าย)
+  final HistoryFilter initialFilter;
+
+  const IncomeExpenseScreen({
+    super.key,
+    this.initialFilter = HistoryFilter.all,
+  });
 
   void _handleBack(BuildContext context) {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     } else {
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+          context, noAnimationRoute(const WalletScreen()));
     }
   }
 
@@ -24,19 +30,15 @@ class IncomeExpenseScreen extends StatelessWidget {
     final service = context.watch<DataService>();
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg,
-        elevation: 0,
-        foregroundColor: AppColors.textPrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          tooltip: 'ย้อนกลับ',
-          onPressed: () => _handleBack(context),
-        ),
-        title: Text(service.t('income_expense'),
-            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+      body: Column(
+        children: [
+          AppHeader(
+            title: service.t('income_expense'),
+            onBack: () => _handleBack(context),
+          ),
+          Expanded(child: IncomeExpenseOverview(initialFilter: initialFilter)),
+        ],
       ),
-      body: const IncomeExpenseOverview(),
       bottomNavigationBar: const BottomNav(currentIndex: 1),
     );
   }

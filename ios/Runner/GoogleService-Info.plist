@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>636277696280-uu3s353g6un9d3mov24m31j336fr0vio.apps.googleusercontent.com</string>
+	<string>636277696280-2r1tehf0qj7okml610e5t7909q1sonve.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.636277696280-uu3s353g6un9d3mov24m31j336fr0vio</string>
+	<string>com.googleusercontent.apps.636277696280-2r1tehf0qj7okml610e5t7909q1sonve</string>
 	<key>API_KEY</key>
 	<string>AIzaSyD_bR-20sEJp6CpbU7Bgh9poAtBHnsMREQ</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.flutterApplication1</string>
+	<string>com.promporn.budgetmate</string>
 	<key>PROJECT_ID</key>
 	<string>budgetmate-app-a94da</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,7 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:636277696280:ios:5c02afbb198561fca1206d</string>
+	<string>1:636277696280:ios:15564d6417db857fa1206d</string>
 </dict>
-
 </plist>

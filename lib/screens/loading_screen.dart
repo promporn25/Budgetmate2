@@ -44,7 +44,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => nextScreen),
+      noAnimationRoute(nextScreen),
     );
   }
 

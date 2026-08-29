@@ -53,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (error == null) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const LanguageSetupScreen()),
+        noAnimationRoute(const LanguageSetupScreen()),
         (route) => false,
       );
     } else {
@@ -66,7 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _goToLogin() {
     Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        context, noAnimationRoute(const LoginScreen()));
   }
 
   @override

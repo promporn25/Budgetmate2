@@ -29,7 +29,7 @@ class _LanguageSetupScreenState extends State<LanguageSetupScreen> {
 
     if (!mounted) return;
     Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+        context, noAnimationRoute(const HomeScreen()));
   }
 
   @override
