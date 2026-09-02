@@ -79,87 +79,166 @@ class _RegisterScreenState extends State<RegisterScreen> {
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const HeaderIconBadge(icon: Icons.person_add_alt_1_rounded),
-                const SizedBox(height: 20),
-                Text(service.t('create_account'),
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.title),
-                const SizedBox(height: 6),
-                Text(service.t('register_subtitle'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
-                const SizedBox(height: 28),
-                AppTextField(
-                  controller: _nameCtrl,
-                  hint: service.t('name_hint'),
-                  icon: Icons.person_outline_rounded,
+      body: Stack(
+        children: [
+          // ก้อนสีพาสเทลลอยด้านหลัง เพิ่มความน่ารักให้พื้นหลัง
+          Positioned(
+            top: -50,
+            right: -50,
+            child: IgnorePointer(
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.transparent,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accentDeep.withOpacity(0.16),
+                      blurRadius: 88,
+                      spreadRadius: 19,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: _emailCtrl,
-                  hint: service.t('email_hint'),
-                  icon: Icons.mail_outline_rounded,
-                  keyboardType: TextInputType.emailAddress,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -70,
+            left: -60,
+            child: IgnorePointer(
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.transparent,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accentDeep.withOpacity(0.15),
+                      blurRadius: 105,
+                      spreadRadius: 23,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: _passCtrl,
-                  hint: service.t('password_hint'),
-                  icon: Icons.lock_outline_rounded,
-                  obscureText: _obscurePass,
-                  toggleObscure: () => setState(() => _obscurePass = !_obscurePass),
-                ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: _confirmCtrl,
-                  hint: service.t('confirm_password_hint'),
-                  icon: Icons.lock_outline_rounded,
-                  obscureText: _obscureConfirm,
-                  toggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 14),
-                  MessageBanner(text: _error!),
-                ],
-                const SizedBox(height: 24),
-                PrimaryButton(
-                  label: service.t('sign_up'),
-                  loading: _loading,
-                  onPressed: _handleRegister,
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton(
-                    onPressed: _loading ? null : _goToLogin,
-                    child: Text.rich(
-                      TextSpan(
-                        text: service.t('already_have_account'),
-                        style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ไอคอนหัวข้อพร้อมแสงเรืองสีพาสเทลด้านหลัง
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          TextSpan(
-                            text: service.t('login'),
-                            style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                decoration: TextDecoration.underline),
+                          Container(
+                            width: 104,
+                            height: 104,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppColors.accentDeep.withOpacity(0.20),
+                                  AppColors.accentDeep.withOpacity(0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const HeaderIconBadge(icon: Icons.person_add_alt_1_rounded),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(service.t('create_account'),
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.title),
+                    const SizedBox(height: 6),
+                    Text(service.t('register_subtitle'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
+                    const SizedBox(height: 26),
+
+                    // การ์ดฟอร์มโค้งมนลอยตัว ให้ความรู้สึกนุ่มนวลอบอุ่นกว่าเดิม
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.md + 8),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentDeep.withOpacity(0.10),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // สลับ เข้าสู่ระบบ/สมัครสมาชิก แบบ pill segmented ที่เลื่อนได้จริง
+                          AuthTabToggle(
+                            loginLabel: service.t('login'),
+                            registerLabel: service.t('register'),
+                            isLogin: false,
+                            onLoginTap: _goToLogin,
+                            onRegisterTap: () {},
+                          ),
+                          const SizedBox(height: 22),
+                          AppTextField(
+                            controller: _nameCtrl,
+                            hint: service.t('name_hint'),
+                            icon: Icons.person_outline_rounded,
+                          ),
+                          const SizedBox(height: 14),
+                          AppTextField(
+                            controller: _emailCtrl,
+                            hint: service.t('email_hint'),
+                            icon: Icons.mail_outline_rounded,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 14),
+                          AppTextField(
+                            controller: _passCtrl,
+                            hint: service.t('password_hint'),
+                            icon: Icons.lock_outline_rounded,
+                            obscureText: _obscurePass,
+                            toggleObscure: () => setState(() => _obscurePass = !_obscurePass),
+                          ),
+                          const SizedBox(height: 14),
+                          AppTextField(
+                            controller: _confirmCtrl,
+                            hint: service.t('confirm_password_hint'),
+                            icon: Icons.lock_outline_rounded,
+                            obscureText: _obscureConfirm,
+                            toggleObscure: () =>
+                                setState(() => _obscureConfirm = !_obscureConfirm),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 14),
+                            MessageBanner(text: _error!),
+                          ],
+                          const SizedBox(height: 22),
+                          PrimaryButton(
+                            label: service.t('sign_up'),
+                            loading: _loading,
+                            onPressed: _handleRegister,
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                const SizedBox(height: 12),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

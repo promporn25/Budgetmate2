@@ -86,107 +86,228 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 8),
-                const HeaderIconBadge(icon: Icons.account_balance_wallet_rounded),
-                const SizedBox(height: 20),
-                Text(service.t('app_name'),
-                    textAlign: TextAlign.center, style: AppTextStyles.title),
-                const SizedBox(height: 6),
-                Text(service.t('login_subtitle'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
-                const SizedBox(height: 28),
-
-                // สลับ เข้าสู่ระบบ/สมัครสมาชิก แบบ pill segmented เดียวกับที่ใช้ทั่วแอป
-                _AuthTabToggle(
-                  loginLabel: service.t('login'),
-                  registerLabel: service.t('register'),
-                  onRegisterTap: _goToRegister,
-                ),
-
-                const SizedBox(height: 24),
-                AppTextField(
-                  controller: _emailCtrl,
-                  hint: service.t('email_hint'),
-                  icon: Icons.mail_outline_rounded,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: _passCtrl,
-                  hint: service.t('password_hint'),
-                  icon: Icons.lock_outline_rounded,
-                  obscureText: _obscure,
-                  toggleObscure: () => setState(() => _obscure = !_obscure),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 14),
-                  MessageBanner(text: _error!),
-                ],
-                const SizedBox(height: 22),
-                PrimaryButton(
-                  label: service.t('sign_in'),
-                  loading: _loading,
-                  onPressed: _handleLogin,
-                ),
-                const SizedBox(height: 14),
-                Row(
+      body: Stack(
+        children: [
+          // ก้อนสีพาสเทลลอยด้านหลัง เพิ่มความน่ารักให้พื้นหลัง
+          const _PastelBlob(
+            top: -60,
+            right: -50,
+            size: 170,
+          ),
+          const _PastelBlob(
+            bottom: -70,
+            left: -60,
+            size: 190,
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: Divider(color: AppColors.border)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(isThai ? 'หรือ' : 'or',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+                    const SizedBox(height: 8),
+                    // ไอคอนหัวข้อพร้อมแสงเรืองสีพาสเทลด้านหลัง ให้ดูนุ่มนวลน่ารักขึ้น
+                    Center(
+                      child: _GlowBadge(
+                        icon: Icons.account_balance_wallet_rounded,
+                      ),
                     ),
-                    Expanded(child: Divider(color: AppColors.border)),
+                    const SizedBox(height: 20),
+                    Text(service.t('app_name'),
+                        textAlign: TextAlign.center, style: AppTextStyles.title),
+                    const SizedBox(height: 6),
+                    Text(service.t('login_subtitle'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
+                    const SizedBox(height: 26),
+
+                    // การ์ดฟอร์มโค้งมนลอยตัว ให้ความรู้สึกนุ่มนวลอบอุ่นกว่าเดิม
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.md + 8),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentDeep.withOpacity(0.10),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // สลับ เข้าสู่ระบบ/สมัครสมาชิก แบบ pill segmented ที่เลื่อนได้จริง
+                          AuthTabToggle(
+                            loginLabel: service.t('login'),
+                            registerLabel: service.t('register'),
+                            isLogin: true,
+                            onLoginTap: () {},
+                            onRegisterTap: _goToRegister,
+                          ),
+                          const SizedBox(height: 22),
+                          AppTextField(
+                            controller: _emailCtrl,
+                            hint: service.t('email_hint'),
+                            icon: Icons.mail_outline_rounded,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 14),
+                          AppTextField(
+                            controller: _passCtrl,
+                            hint: service.t('password_hint'),
+                            icon: Icons.lock_outline_rounded,
+                            obscureText: _obscure,
+                            toggleObscure: () => setState(() => _obscure = !_obscure),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 14),
+                            MessageBanner(text: _error!),
+                          ],
+                          const SizedBox(height: 20),
+                          PrimaryButton(
+                            label: service.t('sign_in'),
+                            loading: _loading,
+                            onPressed: _handleLogin,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(child: Divider(color: AppColors.border)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text(isThai ? 'หรือ' : 'or',
+                                    style: TextStyle(
+                                        color: AppColors.textSecondary, fontSize: 12.5)),
+                              ),
+                              Expanded(child: Divider(color: AppColors.border)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: AppColors.bg,
+                                side: BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(AppRadius.pill)),
+                              ),
+                              onPressed: _googleLoading ? null : _handleGoogleLogin,
+                              icon: _googleLoading
+                                  ? SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: AppColors.textPrimary))
+                                  : Image.asset('assets/images/google_logo.png',
+                                      height: 20, width: 20),
+                              label: Text(
+                                  isThai ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google',
+                                  style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.push(
+                            context, noAnimationRoute(const ForgotPasswordScreen())),
+                        child: Text(service.t('forgot_password_q'),
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: AppColors.surface,
-                      side: BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md)),
-                    ),
-                    onPressed: _googleLoading ? null : _handleGoogleLogin,
-                    icon: _googleLoading
-                        ? SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.textPrimary))
-                        : Image.asset('assets/images/google_logo.png', height: 20, width: 20),
-                    label: Text(
-                        isThai ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google',
-                        style: TextStyle(
-                            color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton(
-                    onPressed: () => Navigator.push(
-                        context, noAnimationRoute(const ForgotPasswordScreen())),
-                    child: Text(service.t('forgot_password_q'),
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(height: 8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// วงกลมแสงพาสเทลนุ่ม ๆ วางไว้ที่ไอคอนหัวข้อ เพื่อเพิ่มมิติและความน่ารักให้หน้า auth
+class _GlowBadge extends StatelessWidget {
+  final IconData icon;
+  const _GlowBadge({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 104,
+          height: 104,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                AppColors.accentDeep.withOpacity(0.20),
+                AppColors.accentDeep.withOpacity(0.0),
               ],
             ),
+          ),
+        ),
+        HeaderIconBadge(icon: icon),
+      ],
+    );
+  }
+}
+
+/// ก้อนแสงพาสเทลลอยอยู่มุมจอ ใช้เป็นของแต่งพื้นหลังโทนนุ่มนวล
+/// ใช้เทคนิค BoxShadow เบลอ (กล่องขนาด 0x0 แล้วให้เงาฟุ้งออกรอบทิศ) แทนการไล่สี
+/// แบบ gradient เพราะเบลอจริงแบบนี้จะฟุ้งกลืนไปกับพื้นหลังได้เนียนทุกด้าน
+/// ไม่มีขอบเส้นแข็ง ๆ ให้เห็นแม้จะโดนขอบจอตัดก็ตาม
+class _PastelBlob extends StatelessWidget {
+  final double? top;
+  final double? bottom;
+  final double? left;
+  final double? right;
+  final double size;
+
+  const _PastelBlob({
+    this.top,
+    this.bottom,
+    this.left,
+    this.right,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: IgnorePointer(
+        child: Container(
+          width: size * 0.4,
+          height: size * 0.4,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.transparent,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accentDeep.withOpacity(0.16),
+                blurRadius: size * 0.55,
+                spreadRadius: size * 0.12,
+              ),
+            ],
           ),
         ),
       ),
@@ -196,21 +317,54 @@ class _LoginScreenState extends State<LoginScreen> {
 
 /// Pill segmented toggle "เข้าสู่ระบบ / สมัครสมาชิก" — ใช้โทนสี/รูปแบบเดียวกับ
 /// _typeToggle ใน add_income_expense_screen.dart (แถบพื้นหลัง AppColors.surface
-/// มีเส้นขอบ + แท่งไฮไลต์ AppColors.accentDeep เลื่อนได้) เพื่อให้หน้า Login
-/// ใช้ภาษาภาพเดียวกับส่วนอื่นของแอป แทนกล่องสีทึบสองกล่องแบบเดิม
+/// มีเส้นขอบ + แท่งไฮไลต์ AppColors.accentDeep) เพื่อให้หน้า Login/Register
+/// ใช้ภาษาภาพเดียวกับส่วนอื่นของแอป
 ///
-/// เนื่องจากหน้านี้อยู่บน "เข้าสู่ระบบ" อยู่แล้วเสมอ (ฝั่งซ้ายไฮไลต์ค้าง) และการแตะ
-/// ฝั่ง "สมัครสมาชิก" จะนำทางออกไปหน้า RegisterScreen แทนการสลับ state ภายใน
-class _AuthTabToggle extends StatelessWidget {
+/// เป็น toggle ที่ "เลื่อนได้" จริง ๆ: แท่งไฮไลต์จะ animate เลื่อนไปด้านที่แตะ
+/// ก่อน แล้วค่อยเรียก callback นำทางไปหน้านั้น (ดีเลย์เท่ากับ duration ของ
+/// แอนิเมชัน) ทำให้เห็นการสลับ tab ลื่นไหลก่อนเปลี่ยนหน้าจริง
+/// ใช้ร่วมกันได้ทั้งหน้า Login (isLogin: true) และหน้า Register (isLogin: false)
+class AuthTabToggle extends StatefulWidget {
   final String loginLabel;
   final String registerLabel;
+  final bool isLogin;
+  final VoidCallback onLoginTap;
   final VoidCallback onRegisterTap;
 
-  const _AuthTabToggle({
+  const AuthTabToggle({
+    super.key,
     required this.loginLabel,
     required this.registerLabel,
+    required this.isLogin,
+    required this.onLoginTap,
     required this.onRegisterTap,
   });
+
+  @override
+  State<AuthTabToggle> createState() => _AuthTabToggleState();
+}
+
+class _AuthTabToggleState extends State<AuthTabToggle> {
+  static const _duration = Duration(milliseconds: 260);
+  late bool _isLogin = widget.isLogin;
+
+  @override
+  void didUpdateWidget(covariant AuthTabToggle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isLogin != widget.isLogin) {
+      setState(() => _isLogin = widget.isLogin);
+    }
+  }
+
+  void _handleTap(bool tappedLogin) {
+    if (tappedLogin == _isLogin) return;
+    // เลื่อนแท่งไฮไลต์ไปด้านที่แตะก่อน แล้วค่อยนำทางไปหน้าใหม่
+    setState(() => _isLogin = tappedLogin);
+    Future.delayed(_duration, () {
+      if (!mounted) return;
+      tappedLogin ? widget.onLoginTap() : widget.onRegisterTap();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,8 +379,10 @@ class _AuthTabToggle extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
+          AnimatedAlign(
+            duration: _duration,
+            curve: Curves.easeOutCubic,
+            alignment: _isLogin ? Alignment.centerLeft : Alignment.centerRight,
             child: FractionallySizedBox(
               widthFactor: 0.5,
               heightFactor: 1,
@@ -234,6 +390,13 @@ class _AuthTabToggle extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.accentDeep,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accentDeep.withOpacity(0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -241,22 +404,34 @@ class _AuthTabToggle extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Center(
-                  child: Text(loginLabel,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _handleTap(true),
+                  child: Center(
+                    child: AnimatedDefaultTextStyle(
+                      duration: _duration,
+                      style: TextStyle(
+                          color: _isLogin ? Colors.white : AppColors.textPrimary,
+                          fontWeight: _isLogin ? FontWeight.w700 : FontWeight.w600,
+                          fontSize: 14),
+                      child: Text(widget.loginLabel),
+                    ),
+                  ),
                 ),
               ),
               Expanded(
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: onRegisterTap,
+                  onTap: () => _handleTap(false),
                   child: Center(
-                    child: Text(registerLabel,
-                        style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
+                    child: AnimatedDefaultTextStyle(
+                      duration: _duration,
+                      style: TextStyle(
+                          color: !_isLogin ? Colors.white : AppColors.textPrimary,
+                          fontWeight: !_isLogin ? FontWeight.w700 : FontWeight.w600,
+                          fontSize: 14),
+                      child: Text(widget.registerLabel),
+                    ),
                   ),
                 ),
               ),

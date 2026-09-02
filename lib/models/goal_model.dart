@@ -12,6 +12,7 @@ class GoalModel {
   final DateTime targetDate; // target_date
   GoalStatus status; // status
   final IconData icon;
+  final String? note; // หมายเหตุ (optional)
 
   GoalModel({
     required this.id,
@@ -22,6 +23,7 @@ class GoalModel {
     required this.targetDate,
     required this.icon,
     this.status = GoalStatus.inProgress,
+    this.note,
   });
 
   double get progress =>
@@ -29,6 +31,29 @@ class GoalModel {
 
   /// ตามข้อ 1.3.2.2 แจ้งเตือนเมื่อใกล้ถึงเป้าหมาย (>= 90%)
   bool get isNearTarget => progress >= 0.9 && progress < 1.0;
+
+  GoalModel copyWith({
+    String? name,
+    double? targetAmount,
+    double? savedAmount,
+    DateTime? startDate,
+    DateTime? targetDate,
+    GoalStatus? status,
+    IconData? icon,
+    String? note,
+  }) {
+    return GoalModel(
+      id: id,
+      name: name ?? this.name,
+      targetAmount: targetAmount ?? this.targetAmount,
+      savedAmount: savedAmount ?? this.savedAmount,
+      startDate: startDate ?? this.startDate,
+      targetDate: targetDate ?? this.targetDate,
+      status: status ?? this.status,
+      icon: icon ?? this.icon,
+      note: note ?? this.note,
+    );
+  }
 
   Map<String, dynamic> toMap(String userId) {
     return {
@@ -41,6 +66,7 @@ class GoalModel {
       'target_date': targetDate.toIso8601String(),
       'status': status == GoalStatus.completed ? 'completed' : 'inProgress',
       'icon_code': icon.codePoint,
+      'note': note,
     };
   }
 
@@ -54,6 +80,7 @@ class GoalModel {
       targetDate: DateTime.parse(map['target_date'] as String),
       status: map['status'] == 'completed' ? GoalStatus.completed : GoalStatus.inProgress,
       icon: IconData(map['icon_code'] as int, fontFamily: 'MaterialIcons'),
+      note: map['note'] as String?,
     );
   }
 }

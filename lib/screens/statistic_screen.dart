@@ -17,6 +17,26 @@ const List<String> _enMonthsShort = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
+// ชุดสีพาสเทลสลับให้ไอคอนเป้าหมายแต่ละใบมีโทนต่างกัน (เทียบ _goalTint ใน
+// goal_saving_screen.dart) เพื่อให้ลิสต์เป้าหมายในหน้าสถิติดูมีสีสันน่ารักขึ้น
+// แทนที่จะเป็นวงกลมสีเดียวซ้ำๆ ทุกใบ
+const List<Color> _statGoalTint = [
+  Color(0xFFDCEEF7), // ฟ้าอ่อน
+  Color(0xFFFBEED0), // เหลืองพีชอ่อน
+  Color(0xFFF6E1E7), // ชมพูอ่อน
+  Color(0xFFE1EFF8), // ฟ้ากลางอ่อน
+  Color(0xFFE8F3E3), // มินต์อ่อน
+  Color(0xFFEFE7FA), // ม่วงลาเวนเดอร์อ่อน
+];
+const List<Color> _statGoalTintIcon = [
+  Color(0xFF3D568F),
+  Color(0xFFC79A3B),
+  Color(0xFFC08B9D),
+  Color(0xFF5C86C4),
+  Color(0xFF4E9B6E),
+  Color(0xFF8B6FC4),
+];
+
 /// หน้า Statistic (3.4.8) - วิเคราะห์แนวโน้มรายรับ/รายจ่าย และความคืบหน้าการออม
 class StatisticScreen extends StatefulWidget {
   const StatisticScreen({super.key});
@@ -80,12 +100,18 @@ class _StatisticScreenState extends State<StatisticScreen> {
               backgroundColor: AppColors.card,
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-            Text(service.t('income_expense'), style: AppTextStyles.heading),
+            Row(
+              children: [
+                Text(service.t('income_expense'), style: AppTextStyles.heading),
+                const SizedBox(width: 6),
+                Icon(Icons.insights_rounded, size: 15, color: AppColors.accentDeep),
+              ],
+            ),
             const SizedBox(height: 12),
             PeriodFilterBar(
               period: _period,
@@ -134,6 +160,17 @@ class _StatisticScreenState extends State<StatisticScreen> {
                             color: AppColors.accentDeep,
                             barWidth: 3,
                             dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  AppColors.accentDeep.withOpacity(0.16),
+                                  AppColors.accentDeep.withOpacity(0.0),
+                                ],
+                              ),
+                            ),
                             spots: List.generate(series.length,
                                 (i) => FlSpot(i.toDouble(), series[i].value['income'] ?? 0)),
                           ),
@@ -142,6 +179,17 @@ class _StatisticScreenState extends State<StatisticScreen> {
                             color: AppColors.accentPink,
                             barWidth: 3,
                             dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  AppColors.accentPink.withOpacity(0.14),
+                                  AppColors.accentPink.withOpacity(0.0),
+                                ],
+                              ),
+                            ),
                             spots: List.generate(series.length,
                                 (i) => FlSpot(i.toDouble(), series[i].value['expense'] ?? 0)),
                           ),
@@ -152,10 +200,10 @@ class _StatisticScreenState extends State<StatisticScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      _legendDot(AppColors.income,
+                      _legendChip(AppColors.income, AppColors.incomeBg,
                           '${service.t('income')} ${pct['income']!.toStringAsFixed(0)}%', true),
-                      const SizedBox(width: 16),
-                      _legendDot(AppColors.expense,
+                      const SizedBox(width: 8),
+                      _legendChip(AppColors.expense, AppColors.expenseBg,
                           '${service.t('expense')} ${pct['expense']!.toStringAsFixed(0)}%', false),
                     ],
                   ),
@@ -166,43 +214,85 @@ class _StatisticScreenState extends State<StatisticScreen> {
             if (mostSpent != null)
               AppCard(
                 color: AppColors.accentAltBg,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.bg,
-                        borderRadius: BorderRadius.circular(12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // ฟองสบู่ตกแต่งมุมขวาบน ให้เข้าชุดกับการ์ดอื่นๆ ในแอป
+                      Positioned(
+                        right: -14,
+                        top: -18,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFC79A3B).withOpacity(0.14), shape: BoxShape.circle),
+                        ),
                       ),
-                      child: CategoryIcon(category: mostSpent.key, color: AppColors.accentDeep),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
                         children: [
-                          Text(service.t('most_spent_category'),
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                          const SizedBox(height: 2),
-                          Text(service.categoryName(mostSpent.key),
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: CategoryIcon(category: mostSpent.key, color: AppColors.accentDeep),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(service.t('most_spent_category'),
+                                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                    const SizedBox(width: 4),
+                                    const Text('🏆', style: TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(service.categoryName(mostSpent.key),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                            ),
+                            child: Text('฿${mostSpent.value.toStringAsFixed(0)}',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          ),
                         ],
                       ),
-                    ),
-                    Text('฿${mostSpent.value.toStringAsFixed(0)}',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             const SizedBox(height: 28),
-            Text(service.t('goal_saving'), style: AppTextStyles.heading),
+            Row(
+              children: [
+                Text(service.t('goal_saving'), style: AppTextStyles.heading),
+                const SizedBox(width: 6),
+                const Text('🐷', style: TextStyle(fontSize: 14)),
+              ],
+            ),
             const SizedBox(height: 12),
             if (service.goals.isNotEmpty) _FeaturedGoalCard(goal: _topGoal(service)!, service: service),
             if (service.goals.isNotEmpty) const SizedBox(height: 16),
             if (service.goals.isEmpty)
               EmptyState(icon: Icons.savings_outlined, text: service.t('no_goals'))
             else
-              ...service.goals.map((g) => Padding(
+              ...service.goals.asMap().entries.map((entry) {
+                final i = entry.key;
+                final g = entry.value;
+                final tint = _statGoalTint[i % _statGoalTint.length];
+                final tintIcon = _statGoalTintIcon[i % _statGoalTintIcon.length];
+                return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: AppCard(
                       padding: const EdgeInsets.all(14),
@@ -214,10 +304,10 @@ class _StatisticScreenState extends State<StatisticScreen> {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.bg,
+                                  color: tint,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Icon(g.icon, color: AppColors.accentDeep, size: 18),
+                                child: Icon(g.icon, color: tintIcon, size: 18),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -235,7 +325,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                               value: g.progress,
                               minHeight: 9,
                               backgroundColor: AppColors.border,
-                              color: g.progress >= 1 ? AppColors.success : AppColors.accentDeep,
+                              color: g.progress >= 1 ? AppColors.success : tintIcon,
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -258,7 +348,8 @@ class _StatisticScreenState extends State<StatisticScreen> {
                         ],
                       ),
                     ),
-                  )),
+                  );
+              }),
             const SizedBox(height: 80),
                 ],
               ),
@@ -276,15 +367,22 @@ class _StatisticScreenState extends State<StatisticScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _legendDot(Color color, String label, bool isIncome) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CuteMascot(
-            kind: isIncome ? CuteMascotKind.income : CuteMascotKind.expense, color: color, size: 14),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
-      ],
+  Widget _legendChip(Color color, Color bg, String label, bool isIncome) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CuteMascot(
+              kind: isIncome ? CuteMascotKind.income : CuteMascotKind.expense, color: color, size: 14),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        ],
+      ),
     );
   }
 }
@@ -306,8 +404,22 @@ class _FeaturedGoalCard extends StatelessWidget {
         color: AppColors.successBg,
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
-      child: Stack(
-        children: [
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ฟองสบู่ตกแต่งมุมล่างซ้าย ให้เข้าชุดกับการ์ดอื่นๆ ในแอป
+            Positioned(
+              left: -18,
+              bottom: -22,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration:
+                    BoxDecoration(color: AppColors.success.withOpacity(0.10), shape: BoxShape.circle),
+              ),
+            ),
           // มาสคอตตกแต่งมุมขวา (placeholder จนกว่าจะมี asset จริง) ไม่บังข้อความ/progress bar
           Positioned(
             right: 0,
@@ -364,7 +476,8 @@ class _FeaturedGoalCard extends StatelessWidget {
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

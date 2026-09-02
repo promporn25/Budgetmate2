@@ -20,6 +20,14 @@ const List<String> _enMonthsShort = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
+/// จุดข้อมูลสำหรับกราฟแท่งคู่ (รายรับ vs รายจ่าย) ต่อหนึ่งช่วงเวลา (วัน/เดือน/ปี)
+class _IncomeExpensePoint {
+  final String label;
+  final double income;
+  final double expense;
+  const _IncomeExpensePoint(this.label, this.income, this.expense);
+}
+
 /// หน้า Home (3.4.6) - แสดงภาพรวมทางการเงินของผู้ใช้งาน
 /// ดีไซน์ v3 "Sky Fintech": ส่วนหัวไล่เฉดฟ้าพาสเทลโค้งมน + Avatar/กระดิ่งแจ้งเตือน
 /// และเพิ่มส่วน "Pinned Goals" แสดงเป้าหมายการออมล่าสุดแบบการ์ดสีพาสเทล
@@ -34,56 +42,92 @@ class _HomeScreenState extends State<HomeScreen> {
   ChartPeriod _period = ChartPeriod.month;
   DateTime _anchor = DateTime.now();
 
-  List<MapEntry<String, double>> _expenseSeries(DataService service) {
+  // สีของแท่งกราฟ "รายรับ" / "รายจ่าย" — ใช้สีจาก AppColors.income / AppColors.expense
+  // ที่มีอยู่แล้วในธีม (app_theme.dart) ตรงกับสีที่ใช้แสดงรายรับ/รายจ่ายในหน้าอื่นๆ
+  // ของแอปอยู่แล้ว (เช่นหน้า History/Statistic) ทำให้สีสื่อความหมายตรงกันทั้งแอป
+  static Color get _incomeColorDeep => AppColors.income;
+  static Color get _incomeColorLight => AppColors.income.withOpacity(0.55);
+  static Color get _expenseColorDeep => AppColors.expense;
+  static Color get _expenseColorLight => AppColors.expense.withOpacity(0.55);
+
+  /// ดึงข้อมูลรายรับ-รายจ่ายตามช่วงเวลาที่เลือก (วัน/เดือน/ปี) สำหรับกราฟแท่งคู่
+  List<_IncomeExpensePoint> _incomeExpenseSeries(DataService service) {
     final isThai = service.currentLanguage != 'English';
     switch (_period) {
       case ChartPeriod.day:
         final data = service.dailySummary(days: 7, endDate: _anchor);
         return data
-            .map((e) => MapEntry('${e.key.day}/${e.key.month}', e.value['expense'] ?? 0))
+            .map((e) => _IncomeExpensePoint(
+                  '${e.key.day}/${e.key.month}',
+                  e.value['income'] ?? 0,
+                  e.value['expense'] ?? 0,
+                ))
             .toList();
       case ChartPeriod.month:
         final data = service.monthlySummary(months: 6, endMonth: _anchor);
         final months = isThai ? _thaiMonthsShort : _enMonthsShort;
         return data
-            .map((e) => MapEntry(months[e.key.month - 1], e.value['expense'] ?? 0))
+            .map((e) => _IncomeExpensePoint(
+                  months[e.key.month - 1],
+                  e.value['income'] ?? 0,
+                  e.value['expense'] ?? 0,
+                ))
             .toList();
       case ChartPeriod.year:
         final data = service.yearlySummary(years: 5, endYear: _anchor.year);
-        return data.map((e) => MapEntry('${e.key}', e.value['expense'] ?? 0)).toList();
+        return data
+            .map((e) => _IncomeExpensePoint(
+                  '${e.key}',
+                  e.value['income'] ?? 0,
+                  e.value['expense'] ?? 0,
+                ))
+            .toList();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final service = context.watch<DataService>();
-    final series = _expenseSeries(service);
-    final maxVal = series.map((e) => e.value).fold<double>(0, (a, b) => a > b ? a : b);
+    final series = _incomeExpenseSeries(service);
+    final maxVal = series
+        .expand((e) => [e.income, e.expense])
+        .fold<double>(0, (a, b) => a > b ? a : b);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       extendBodyBehindAppBar: true,
-      // ห่อด้วย RefreshIndicator เพื่อให้ตอนดึงหน้าจอเกินขอบบน (overscroll) แสดงไอคอน
-      // "กำลังโหลด" แบบมีความหมายแทนที่จะเห็นพื้นที่ว่างสีขาวโล่งๆ เหมือนก่อนหน้านี้
-      body: RefreshIndicator(
-        color: AppColors.accentDeep,
-        backgroundColor: AppColors.card,
-        onRefresh: _onRefresh,
-        child: SingleChildScrollView(
-        // ต้องใช้ AlwaysScrollableScrollPhysics ไม่งั้นถ้าเนื้อหาสั้นกว่าจอ
-        // จะดึงเพื่อรีเฟรชไม่ได้เลย
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        child: Column(
+      // _SkyHeader อยู่นอก RefreshIndicator/SingleChildScrollView โดยตั้งใจ เพื่อให้
+      // Header ตรึงอยู่บนสุดเสมอ (เหมือนหน้า Statistic/History) — ถ้าเอา Header ไปไว้
+      // เป็นลูกของเนื้อหาที่เลื่อนได้ ตอนดึงลงมารีเฟรชเนื้อหาทั้งหมด (รวม Header) จะถูก
+      // ดันลงมาด้วย จะเห็นพื้นหลังเปล่าของ Scaffold (สีขาวอมฟ้าอ่อน) โผล่มาด้านบนแทน
+      body: Column(
+        children: [
+          _SkyHeader(service: service),
+          Expanded(
+            child: RefreshIndicator(
+              color: AppColors.accentDeep,
+              backgroundColor: AppColors.card,
+              onRefresh: _onRefresh,
+              child: SingleChildScrollView(
+                // ต้องใช้ AlwaysScrollableScrollPhysics ไม่งั้นถ้าเนื้อหาสั้นกว่าจอ
+                // จะดึงเพื่อรีเฟรชไม่ได้เลย
+                physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
+                padding: EdgeInsets.zero,
+                child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SkyHeader(service: service),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(service.t('expense_trend'), style: AppTextStyles.heading),
+                  Row(
+                    children: [
+                      Text(service.t('expense_trend'), style: AppTextStyles.heading),
+                      const SizedBox(width: 6),
+                      Icon(Icons.show_chart_rounded, size: 15, color: AppColors.accentDeep),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   PeriodFilterBar(
                     period: _period,
@@ -93,54 +137,114 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 14),
                   AppCard(
-                    padding: const EdgeInsets.fromLTRB(12, 20, 16, 8),
-                    child: SizedBox(
-                      height: 190,
-                      child: BarChart(
-                        BarChartData(
-                          maxY: maxVal == 0 ? 100 : maxVal * 1.2,
-                          gridData: const FlGridData(show: false),
-                          borderData: FlBorderData(show: false),
-                          titlesData: FlTitlesData(
-                            leftTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) {
-                                  final idx = value.toInt();
-                                  if (idx < 0 || idx >= series.length) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(series[idx].key,
-                                        style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                                  );
-                                },
+                    padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (maxVal != 0) ...[
+                          Row(
+                            children: [
+                              const Spacer(),
+                              _LegendDot(
+                                color: _incomeColorDeep,
+                                label: service.currentLanguage != 'English'
+                                    ? 'รายรับ'
+                                    : 'Income',
                               ),
+                              const SizedBox(width: 14),
+                              _LegendDot(
+                                color: _expenseColorDeep,
+                                label: service.currentLanguage != 'English'
+                                    ? 'รายจ่าย'
+                                    : 'Expense',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        SizedBox(
+                          height: 190,
+                          child: maxVal == 0
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CuteMascot(
+                                          kind: CuteMascotKind.income,
+                                          size: 34,
+                                          color: AppColors.accent),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        service.t('no_expense_data'),
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary, fontSize: 12.5),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : BarChart(
+                            BarChartData(
+                              maxY: maxVal == 0 ? 100 : maxVal * 1.2,
+                              gridData: const FlGridData(show: false),
+                              borderData: FlBorderData(show: false),
+                              groupsSpace: 18,
+                              titlesData: FlTitlesData(
+                                leftTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      final idx = value.toInt();
+                                      if (idx < 0 || idx >= series.length) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Text(series[idx].label,
+                                            style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              barGroups: List.generate(series.length, (i) {
+                                final p = series[i];
+                                return BarChartGroupData(
+                                  x: i,
+                                  barsSpace: 4,
+                                  barRods: [
+                                    BarChartRodData(
+                                      toY: p.income,
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [_incomeColorDeep, _incomeColorLight],
+                                      ),
+                                      width: 9,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    BarChartRodData(
+                                      toY: p.expense,
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [_expenseColorDeep, _expenseColorLight],
+                                      ),
+                                      width: 9,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ],
+                                );
+                              }),
                             ),
                           ),
-                          barGroups: List.generate(series.length, (i) {
-                            return BarChartGroupData(x: i, barRods: [
-                              BarChartRodData(
-                                toY: series[i].value,
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [AppColors.accentDeep, AppColors.accent],
-                                ),
-                                width: 14,
-                                borderRadius: BorderRadius.circular(6),
-                              )
-                            ]);
-                          }),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -177,16 +281,54 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  Text(service.t('exchange_rate'), style: AppTextStyles.heading),
+                  Row(
+                    children: [
+                      Text(service.t('exchange_rate'), style: AppTextStyles.heading),
+                      const SizedBox(width: 6),
+                      Icon(Icons.currency_exchange_rounded, size: 14, color: AppColors.accentDeep),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  AppCard(
+                  Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(14),
-                    child: Column(
-                      children: [
-                        _RateRow(buyLabel: service.t('buy'), sellLabel: service.t('sell'),
-                            flag: const Text('🇺🇸', style: TextStyle(fontSize: 22)),
-                            code: 'USD', buy: '31.55', sell: '31.75'),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.accentBg, AppColors.surfaceAlt],
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.shadow, blurRadius: 16, offset: const Offset(0, 6)),
                       ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // ฟองสบู่ตกแต่งมุมล่างขวา ให้เข้าชุดกับการ์ดอื่นๆ ในแอป
+                          Positioned(
+                            right: -12,
+                            bottom: -16,
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                  color: AppColors.accentDeep.withOpacity(0.08),
+                                  shape: BoxShape.circle),
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              _RateRow(buyLabel: service.t('buy'), sellLabel: service.t('sell'),
+                                  flag: const Text('🇺🇸', style: TextStyle(fontSize: 22)),
+                                  code: 'USD', buy: '31.55', sell: '31.75'),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -197,6 +339,32 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text('Pinned Goals', style: AppTextStyles.heading),
                         const SizedBox(width: 6),
                         Icon(Icons.push_pin_rounded, size: 15, color: AppColors.accentPink),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                              context, noAnimationRoute(const GoalSavingScreen())),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  service.currentLanguage != 'English' ? 'ดูทั้งหมด' : 'See all',
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.accentDeep),
+                                ),
+                                Icon(Icons.chevron_right_rounded,
+                                    size: 15, color: AppColors.accentDeep),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -224,18 +392,41 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 70),
           ],
         ),
-        ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 0),
     );
   }
 
-  // จำลองการรีเฟรชข้อมูล (ข้อมูลจริงมาจาก Provider<DataService> ซึ่งอัปเดต
-  // อัตโนมัติอยู่แล้วเมื่อมีการเปลี่ยนแปลง ฟังก์ชันนี้แค่ทำให้มีจังหวะหน่วง
-  // สั้นๆ ให้ผู้ใช้เห็นวงกลมโหลดก่อนพับกลับ)
   Future<void> _onRefresh() async {
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) setState(() {});
+  }
+}
+
+/// จุดสีเล็กๆ พร้อม label ใช้เป็น legend อธิบายสีแท่งกราฟรายรับ/รายจ่าย
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+      ],
+    );
   }
 }
 
@@ -280,6 +471,13 @@ class _SkyHeader extends StatelessWidget {
             child: Icon(Icons.auto_awesome_rounded,
                 size: 9, color: Colors.white.withOpacity(0.6)),
           ),
+          // ไอคอนพระอาทิตย์ (กลางวัน) / พระจันทร์ (กลางคืน) เปลี่ยนตามเวลาจริงของเครื่อง
+          // ให้ธีม "ท้องฟ้า" ของ Header มีความหมายจริงๆ ไม่ใช่แค่ไล่เฉดสีเฉยๆ
+          const Positioned(
+            right: 46,
+            top: 4,
+            child: _SkyTimeIcon(),
+          ),
           Row(
             children: [
               CircleAvatar(
@@ -315,6 +513,39 @@ class _SkyHeader extends StatelessWidget {
   }
 }
 
+/// ไอคอนพระอาทิตย์ (กลางวัน) หรือพระจันทร์ (กลางคืน) เปลี่ยนตามเวลาจริงของเครื่อง
+/// เป็นรายละเอียดเล็กๆ ที่ทำให้ธีม "ท้องฟ้า" ของ Header มีความหมายจริงมากกว่า
+/// แค่ไล่เฉดสีเฉยๆ — กลางวัน (06:00-18:00) โชว์พระอาทิตย์โทนเหลืองพาสเทล
+/// นอกเวลานั้นโชว์พระจันทร์โทนม่วงลาเวนเดอร์พาสเทล
+class _SkyTimeIcon extends StatelessWidget {
+  const _SkyTimeIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final isDay = hour >= 6 && hour < 18;
+    final Color glow = isDay ? const Color(0xFFFFE698) : const Color(0xFFEFE7FA);
+    final Color iconColor = isDay ? const Color(0xFFC79A3B) : const Color(0xFF8B6FC4);
+
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: glow.withOpacity(0.55), shape: BoxShape.circle),
+          ),
+          Icon(isDay ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+              size: 18, color: iconColor),
+        ],
+      ),
+    );
+  }
+}
+
 class _RateRow extends StatelessWidget {
   final Widget flag;
   final String code, buy, sell, buyLabel, sellLabel;
@@ -327,6 +558,19 @@ class _RateRow extends StatelessWidget {
     required this.sellLabel,
   });
 
+  Widget _chip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Text('$label $value',
+          style: TextStyle(
+              color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -337,9 +581,9 @@ class _RateRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(code, style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           const Spacer(),
-          Text('$buyLabel $buy', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
-          const SizedBox(width: 12),
-          Text('$sellLabel $sell', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+          _chip(buyLabel, buy),
+          const SizedBox(width: 8),
+          _chip(sellLabel, sell),
         ],
       ),
     );
@@ -368,25 +612,61 @@ class _ActionButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.lg),
         onTap: onTap,
-        child: AppCard(
-          color: cardBg,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-          child: Row(
-            children: [
-              Icon(icon, size: 26, color: iconBg),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: AppColors.textPrimary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            boxShadow: [
+              BoxShadow(
+                color: iconBg.withOpacity(0.20),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
               ),
             ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // ฟองสบู่ตกแต่งมุมขวาบน ให้เข้าชุดกับการ์ดอื่นๆ ในแอป
+                Positioned(
+                  right: -14,
+                  top: -16,
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration:
+                        BoxDecoration(color: iconBg.withOpacity(0.14), shape: BoxShape.circle),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: Icon(icon, size: 20, color: iconBg),
+                      ),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

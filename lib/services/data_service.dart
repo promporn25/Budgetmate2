@@ -593,6 +593,7 @@ class DataService extends ChangeNotifier {
     required DateTime targetDate,
     required IconData icon,
     double savedAmount = 0,
+    String? note,
   }) async {
     if (currentUser == null) return t('please_login_first');
     final goal = GoalModel(
@@ -603,6 +604,7 @@ class DataService extends ChangeNotifier {
       startDate: DateTime.now(),
       targetDate: targetDate,
       icon: icon,
+      note: note,
     );
     try {
       await _db.insert('goals', goal.toMap(currentUser!.id));

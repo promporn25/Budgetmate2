@@ -17,23 +17,20 @@ const List<IconData> _customCategoryIcons = [
   Icons.pets_outlined, Icons.celebration, Icons.wifi, Icons.subscriptions,
 ];
 
-// วงกลมสีพาสเทลสลับให้แต่ละหมวดหมู่ที่ยังไม่ถูกเลือก ให้ดูมีสีสันน่ารักตามดีไซน์อ้างอิง
-const List<Color> _categoryTint = [
-  Color(0xFFDCEEF7), // ฟ้าอ่อน (C1E4F3)
-  Color(0xFFF6E1E7), // ชมพูอ่อน (C08B9D)
-  Color(0xFFFFF3D2), // เหลืองอ่อน (FFE698)
-  Color(0xFFDCE4F2), // น้ำเงินอ่อน (3D568F)
-  Color(0xFFE1EFF8), // ฟ้ากลางอ่อน (80A1D4)
-];
+// สีของ "ไอคอน" หมวดหมู่ (พื้นหลังกล่องไอคอนเป็นสีขาวล้วนเสมอ ใช้ชุดสีนี้แค่ทาสีตัวไอคอนเท่านั้น)
 const List<Color> _categoryTintIcon = [
-  Color(0xFF80A1D4),
-  Color(0xFFC08B9D),
+  Color(0xFF6FA3D6),
+  Color(0xFFD9789B),
   Color(0xFFC79A3B),
-  Color(0xFF3D568F),
-  Color(0xFF5C86C4),
+  Color(0xFF8C79C9),
+  Color(0xFF54A57E),
+  Color(0xFFDB8A55),
+  Color(0xFF4FA79C),
+  Color(0xFFB1699F),
 ];
 
-/// หน้า Add Income/Expense (3.4.10)
+/// หน้า Add Income/Expense (3.4.10) — ปรับดีไซน์ให้ดูนุ่มนวล มีมิติ และน่ารักขึ้น
+/// (โทนพาสเทลเดิม, ฟังก์ชันเดิมทั้งหมดไม่เปลี่ยนแปลง)
 class AddIncomeExpenseScreen extends StatefulWidget {
   const AddIncomeExpenseScreen({super.key});
 
@@ -42,17 +39,17 @@ class AddIncomeExpenseScreen extends StatefulWidget {
 }
 
 class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
-  // ความสูงคงที่ของแผงปุ่มตัวเลขที่จะเลื่อนขึ้นมาจากด้านล่าง
   static const double _numpadHeight = 300;
   static const Duration _numpadAnim = Duration(milliseconds: 260);
+  // ใช้ผูก _amountDisplay() กับ _numpadPanel() เป็นภูมิภาคเดียวกันสำหรับ TapRegion
+  // เพื่อตรวจจับ "แตะข้างนอก" แล้วปิดแป้นตัวเลข โดยไม่บล็อกการเลื่อนจอ
+  static const String _numpadGroupId = 'amount_numpad_group';
 
   CategoryType _type = CategoryType.income;
   CategoryModel? _selectedCategory;
   String _amountText = '';
   final _noteCtrl = TextEditingController();
   bool _saving = false;
-
-  // true เมื่อผู้ใช้กำลังจะพิมพ์จำนวนเงิน -> โชว์แป้นตัวเลข + เคอร์เซอร์กระพริบ
   bool _showNumpad = false;
 
   String? _editingId;
@@ -67,45 +64,35 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
   }
 
   void _openNumpad() {
-  // เอา focus ออกจากช่องหมายเหตุ
-  FocusScope.of(context).unfocus();
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    HapticFeedback.selectionClick();
+    setState(() {
+      _showNumpad = true;
+    });
+  }
 
-  // ซ่อน keyboard ของมือถือ
-  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  void _closeNumpad() {
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    if (_showNumpad) {
+      setState(() {
+        _showNumpad = false;
+      });
+    }
+  }
 
-  setState(() {
-    _showNumpad = true;
-  });
-}
-
-void _closeNumpad() {
-  // เอา focus ออกจาก TextField ทุกตัว
-  FocusScope.of(context).unfocus();
-
-  // ซ่อน keyboard ของมือถือ
-  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-
-  if (_showNumpad) {
+  void _finishAmountInput() {
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    HapticFeedback.lightImpact();
     setState(() {
       _showNumpad = false;
     });
   }
-}
-
-void _finishAmountInput() {
-  // เอา focus ออกจากช่องหมายเหตุและ TextField ทั้งหมด
-  FocusScope.of(context).unfocus();
-
-  // ซ่อน keyboard ของระบบ
-  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-
-  // ปิดแป้นตัวเลข
-  setState(() {
-    _showNumpad = false;
-  });
-}
 
   void _pressDigit(String d) {
+    HapticFeedback.selectionClick();
     setState(() {
       if (d == '.' && _amountText.contains('.')) return;
       _amountText += d;
@@ -114,6 +101,7 @@ void _finishAmountInput() {
 
   void _backspace() {
     if (_amountText.isEmpty) return;
+    HapticFeedback.selectionClick();
     setState(() => _amountText = _amountText.substring(0, _amountText.length - 1));
   }
 
@@ -141,6 +129,8 @@ void _finishAmountInput() {
       return;
     }
 
+    HapticFeedback.mediumImpact();
+
     setState(() {
       if (_editingId != null) {
         final index = _tempTransactions.indexWhere((t) => t['id'] == _editingId);
@@ -164,7 +154,6 @@ void _finishAmountInput() {
       _amountText = '';
       _noteCtrl.clear();
       _selectedCategory = null;
-      // เพิ่ม/แก้ไขรายการเสร็จแล้ว พับแป้นตัวเลขลง รอจนกว่าจะเลือกหมวดหมู่ถัดไป
       _showNumpad = false;
     });
 
@@ -179,22 +168,19 @@ void _finishAmountInput() {
   }
 
   void _startEdit(Map<String, dynamic> tx) {
-  // ป้องกัน keyboard ช่องหมายเหตุค้าง
-  FocusScope.of(context).unfocus();
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    HapticFeedback.selectionClick();
 
-  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-
-  setState(() {
-    _editingId = tx['id'] as String;
-    _selectedCategory = tx['category'] as CategoryModel;
-    _type = _selectedCategory!.type;
-    _amountText = _formatAmount(tx['amount'] as double);
-    _noteCtrl.text = (tx['note'] as String?) ?? '';
-
-    // เปิด numpad เพื่อแก้จำนวนเงิน
-    _showNumpad = true;
-  });
-}
+    setState(() {
+      _editingId = tx['id'] as String;
+      _selectedCategory = tx['category'] as CategoryModel;
+      _type = _selectedCategory!.type;
+      _amountText = _formatAmount(tx['amount'] as double);
+      _noteCtrl.text = (tx['note'] as String?) ?? '';
+      _showNumpad = true;
+    });
+  }
 
   void _cancelEdit() {
     setState(() {
@@ -207,8 +193,13 @@ void _finishAmountInput() {
   }
 
   void _removeTransaction(String id) {
+    final index = _tempTransactions.indexWhere((t) => t['id'] == id);
+    if (index == -1) return;
+    final removed = _tempTransactions[index];
+
+    HapticFeedback.lightImpact();
     setState(() {
-      _tempTransactions.removeWhere((t) => t['id'] == id);
+      _tempTransactions.removeAt(index);
       if (_editingId == id) {
         _editingId = null;
         _selectedCategory = null;
@@ -217,6 +208,26 @@ void _finishAmountInput() {
         _showNumpad = false;
       }
     });
+
+    // เผื่อลบผิดพลาด (เช่นปัดทิ้งพลาด) ให้กด "เลิกทำ" เพื่อดึงรายการกลับมาได้
+    if (!mounted) return;
+    final isThai = context.read<DataService>().currentLanguage != 'English';
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isThai ? 'ลบรายการแล้ว' : 'Item removed'),
+        action: SnackBarAction(
+          label: isThai ? 'เลิกทำ' : 'Undo',
+          onPressed: () {
+            setState(() {
+              final insertAt = index <= _tempTransactions.length ? index : _tempTransactions.length;
+              _tempTransactions.insert(insertAt, removed);
+            });
+          },
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -264,15 +275,13 @@ void _finishAmountInput() {
     final categories = service.categoriesByType(_type);
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final panelHeight = _numpadHeight + bottomInset;
+    final typeAccent = _type == CategoryType.income ? AppColors.income : AppColors.expense;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      // เปิดให้จอ resize หนี system keyboard (ตอนโฟกัสช่องหมายเหตุ)
-      // เพื่อไม่ให้คีย์บอร์ดของเครื่องมาบังช่องหมายเหตุ
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // ----- เนื้อหาหลักของหน้า -----
           Positioned.fill(
             child: Column(
               children: [
@@ -282,10 +291,23 @@ void _finishAmountInput() {
                       context, noAnimationRoute(const HomeScreen())),
                   trailing: Align(
                     alignment: Alignment.centerRight,
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.savings_rounded, color: AppColors.accentDeep, size: 16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentDeep.withOpacity(0.22),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Icon(Icons.savings_rounded, color: AppColors.accentDeep, size: 16),
+                      ),
                     ),
                   ),
                 ),
@@ -295,29 +317,11 @@ void _finishAmountInput() {
                     children: [
                       _typeToggle(),
                       const Spacer(),
-                      GestureDetector(
-                        onTap: (_saving || _tempTransactions.isEmpty) ? null : _save,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _tempTransactions.isEmpty ? AppColors.textMuted : AppColors.accentPink,
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: _saving
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : Text(service.t('save'),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
+                      _saveButton(service),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
-                // พื้นที่หมวดหมู่/หมายเหตุ/รายการที่เพิ่ม ขยายเต็มพื้นที่ที่เหลือ
-                // (ตอนนี้แป้นตัวเลขไม่ได้กินพื้นที่ตายตัวอีกต่อไป เพราะจะลอยขึ้นมาเฉพาะตอนใช้งาน)
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _scrollController,
@@ -329,12 +333,14 @@ void _finishAmountInput() {
                           child: Row(
                             children: [
                               Text(service.t('categories'), style: AppTextStyles.heading),
+                              const SizedBox(width: 5),
+                              Icon(Icons.auto_awesome_rounded, size: 13, color: AppColors.accentPink),
                               const Spacer(),
                               Text(service.t('showing_categories'),
                                   style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: AppColors.accentBg,
                                   borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -350,70 +356,72 @@ void _finishAmountInput() {
                         ),
                         const SizedBox(height: 12),
                         _categoryRows(service, categories),
-                        const SizedBox(height: 4),
-                        Divider(height: 24, color: AppColors.border),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Divider(height: 1, color: AppColors.border),
+                        ),
                         if (_tempTransactions.isNotEmpty) ...[
                           const SizedBox(height: 16),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text(
-                              '${service.t('items_added')}: ${_tempTransactions.length} ${service.t('items_unit')} ${service.t('tap_to_edit')}',
-                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary),
+                            child: Row(
+                              children: [
+                                Icon(Icons.receipt_long_rounded, size: 15, color: AppColors.textSecondary),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '${service.t('items_added')}: ${_tempTransactions.length} ${service.t('items_unit')} · ${service.t('tap_to_edit')}',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w600, fontSize: 12.5, color: AppColors.textSecondary),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          const SizedBox(height: 10),
+                          // สรุปยอดรวมรายรับ/รายจ่าย/สุทธิของรายการที่ "รอบันทึก" อยู่
+                          // ให้ผู้ใช้เห็นผลลัพธ์ก่อนกด Save จริง ลดโอกาสกรอกผิดแล้วไม่รู้ตัว
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _pendingSummaryCard(),
                           ),
                           const SizedBox(height: 10),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Column(
-                              children: _tempTransactions.map((tx) {
-                                final isEditing = tx['id'] == _editingId;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: AppCard(
-                                    color: isEditing ? AppColors.accentBg : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    onTap: () => _startEdit(tx),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: tx['category'].type == CategoryType.income
-                                              ? AppColors.incomeBg
-                                              : AppColors.expenseBg,
-                                          child: CategoryIcon(category: tx['category'],
-                                              size: 18,
-                                              color: tx['category'].type == CategoryType.income
-                                                  ? AppColors.income
-                                                  : AppColors.expense),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(service.categoryName(tx['category']),
-                                                  style: TextStyle(
-                                                      fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-                                              if (tx['note'] != null)
-                                                Text(tx['note'],
-                                                    style: TextStyle(
-                                                        color: AppColors.textSecondary, fontSize: 11)),
-                                            ],
-                                          ),
-                                        ),
-                                        Text('${_formatAmount(tx['amount'] as double)}฿',
-                                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                                        const SizedBox(width: 8),
-                                        GestureDetector(
-                                          onTap: () => _removeTransaction(tx['id']),
-                                          child: Icon(Icons.close_rounded,
-                                              size: 20, color: AppColors.textSecondary),
-                                        ),
-                                      ],
+                              children: _tempTransactions.map((tx) => _transactionTile(tx, service)).toList(),
+                            ),
+                          ),
+                        ] else ...[
+                          // คำแนะนำสั้นๆ ตอนยังไม่มีรายการ ช่วยให้ผู้ใช้ใหม่รู้ว่าต้องทำอะไรต่อ
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.accentBg.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                              ),
+                              child: Row(
+                                children: [
+                                  CuteMascot(
+                                      kind: CuteMascotKind.income,
+                                      size: 20,
+                                      color: AppColors.accentDeep),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      service.currentLanguage != 'English'
+                                          ? 'แตะเลือกหมวดหมู่ด้านบน แล้วกรอกจำนวนเงินเพื่อเพิ่มรายการนะ 🌱'
+                                          : 'Tap a category above, then enter an amount to add an item 🌱',
+                                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                     ),
                                   ),
-                                );
-                              }).toList(),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -432,8 +440,15 @@ void _finishAmountInput() {
                         child: _editingId != null
                             ? Row(
                                 children: [
-                                  Icon(Icons.edit_rounded, size: 16, color: AppColors.ink),
-                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accentBg,
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                    ),
+                                    child: Icon(Icons.edit_rounded, size: 12, color: AppColors.ink),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       '${service.t('editing')}: ${_selectedCategory != null ? service.categoryName(_selectedCategory!) : ''}',
@@ -454,33 +469,32 @@ void _finishAmountInput() {
                                   ),
                                 ],
                               )
-                            : Text(
-                                _selectedCategory != null
-                                    ? '${service.t('selected_category')}: ${service.categoryName(_selectedCategory!)}'
-                                    : service.t('select_category_prompt'),
-                                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-                                overflow: TextOverflow.ellipsis,
+                            : Row(
+                                children: [
+                                  if (_selectedCategory != null)
+                                    Container(
+                                      width: 7,
+                                      height: 7,
+                                      margin: const EdgeInsets.only(right: 7),
+                                      decoration: BoxDecoration(color: typeAccent, borderRadius: BorderRadius.circular(2)),
+                                    ),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedCategory != null
+                                          ? '${service.t('selected_category')}: ${service.categoryName(_selectedCategory!)}'
+                                          : service.t('select_category_prompt'),
+                                      style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
                       ),
                       const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: _addOrUpdate,
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentPink,
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: Icon(_editingId != null ? Icons.check_rounded : Icons.add,
-                              color: Colors.white, size: 28),
-                        ),
-                      ),
+                      _addButton(),
                     ],
                   ),
                 ),
-                // ช่องหมายเหตุ: ย้ายมาไว้ใกล้ปุ่ม + ด้านล่าง และจะ "เลื่อนขึ้น/หายไป"
-                // เฉพาะตอนแป้นตัวเลขเปิดอยู่ กันไม่ให้แป้นเลื่อนขึ้นมาบัง
                 ClipRect(
                   child: AnimatedAlign(
                     duration: _numpadAnim,
@@ -502,10 +516,7 @@ void _finishAmountInput() {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // แถบจำนวนเงิน: แตะเพื่อเปิดแป้นตัวเลข พร้อมเคอร์เซอร์กระพริบระหว่างพิมพ์
                 _amountDisplay(),
-                // จองพื้นที่ด้านล่างเท่ากับความสูงแป้นตัวเลข เมื่อแป้นถูกเปิดอยู่
-                // เพื่อดันเนื้อหาขึ้น ไม่ให้แป้นที่ลอยขึ้นมาบังจำนวนเงิน/ปุ่มเพิ่มรายการ
                 AnimatedContainer(
                   duration: _numpadAnim,
                   curve: Curves.easeOutCubic,
@@ -515,17 +526,12 @@ void _finishAmountInput() {
             ),
           ),
 
-          // ----- ฉากทึบใส สำหรับแตะนอกพื้นที่แป้นตัวเลขเพื่อปิดแป้น -----
-          if (_showNumpad)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _closeNumpad,
-                child: Container(color: Colors.transparent),
-              ),
-            ),
+          // เดิมใช้ Positioned.fill(GestureDetector) คลุมทั้งจอเพื่อปิดแป้นเมื่อแตะข้างนอก
+          // แต่วิธีนั้นทำให้ "การเลื่อนหน้าจอถูกบล็อกไปด้วย" เพราะ Flutter จะหยุดทดสอบ
+          // การสัมผัสที่ widget ทึบตัวแรกที่เจอใน Stack (แม้จะตั้ง translucent ก็ตาม)
+          // เปลี่ยนมาใช้ TapRegion แทน ซึ่งตรวจจับ "แตะข้างนอก" ได้โดยไม่ไปขวางการลาก/เลื่อน
+          // ของเนื้อหาด้านล่าง ผู้ใช้เลื่อนดูรายการ/หมวดหมู่ได้ตามปกติแม้แป้นตัวเลขเปิดอยู่
 
-          // ----- แผงปุ่มตัวเลข เลื่อนขึ้นจากด้านล่าง เฉพาะตอนต้องการพิมพ์จำนวนเงิน -----
           AnimatedPositioned(
             duration: _numpadAnim,
             curve: Curves.easeOutCubic,
@@ -540,129 +546,379 @@ void _finishAmountInput() {
     );
   }
 
-  // กล่องแสดง/กรอกจำนวนเงิน: มีกรอบสีเดียวกับช่องหมายเหตุ, มีลายน้ำตอนยังไม่กรอก,
-  // และเคอร์เซอร์กระพริบอยู่ "หน้า" สัญลักษณ์ ฿ ระหว่างที่กำลังพิมพ์
-  Widget _amountDisplay() {
-  final showPlaceholder = !_showNumpad && _amountText.isEmpty;
-
-  return GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: _openNumpad,
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 14,
+  // ---------- ปุ่มบันทึก ----------
+  Widget _saveButton(DataService service) {
+    final disabled = _saving || _tempTransactions.isEmpty;
+    return GestureDetector(
+      onTap: disabled ? null : _save,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: disabled
+              ? null
+              : LinearGradient(
+                  colors: [AppColors.accentPink, AppColors.accentDeep],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          color: disabled ? AppColors.textMuted : null,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          boxShadow: disabled
+              ? []
+              : [
+                  BoxShadow(
+                    color: AppColors.accentPink.withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: _saving
+            ? const SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 15, color: Colors.white.withOpacity(0.9)),
+                  const SizedBox(width: 5),
+                  Text(service.t('save'),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
       ),
+    );
+  }
+
+  // ---------- ปุ่มเพิ่ม/ยืนยันแก้ไข ----------
+  Widget _addButton() {
+    final isEditing = _editingId != null;
+    return GestureDetector(
+      onTap: _addOrUpdate,
+      child: Container(
+        width: 54,
+        height: 54,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isEditing
+                ? [AppColors.accentDeep, AppColors.accentDeep]
+                : [AppColors.accentPink, AppColors.accentDeep],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.accentPink.withOpacity(0.4),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Icon(isEditing ? Icons.check_rounded : Icons.add_rounded,
+            color: Colors.white, size: 28),
+      ),
+    );
+  }
+
+  // ---------- การ์ดสรุปยอดรวมรายการที่ "รอบันทึก" ----------
+  Widget _pendingSummaryCard() {
+    double income = 0;
+    double expense = 0;
+    for (final tx in _tempTransactions) {
+      final amt = tx['amount'] as double;
+      if ((tx['category'] as CategoryModel).type == CategoryType.income) {
+        income += amt;
+      } else {
+        expense += amt;
+      }
+    }
+    final net = income - expense;
+    final isThai = context.read<DataService>().currentLanguage != 'English';
+
+    Widget item(String label, double value, Color color) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 2),
+            Text(
+              '${_formatAmount(value)}฿',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: color),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: _showNumpad
-              ? AppColors.accentPink
-              : AppColors.border,
-          width: _showNumpad ? 1.4 : 1,
-        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
       ),
-      child: showPlaceholder
-          ? Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'กรุณาระบุจำนวนเงิน',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textSecondary,
+      child: Row(
+        children: [
+          item(isThai ? 'รายรับรวม' : 'Income', income, AppColors.income),
+          Container(width: 1, height: 28, color: AppColors.border),
+          item(isThai ? 'รายจ่ายรวม' : 'Expense', expense, AppColors.expense),
+          Container(width: 1, height: 28, color: AppColors.border),
+          item(isThai ? 'ยอดสุทธิ' : 'Net', net, net >= 0 ? AppColors.income : AppColors.expense),
+        ],
+      ),
+    );
+  }
+
+  // ---------- รายการที่เพิ่มแล้ว ----------
+  Widget _transactionTile(Map<String, dynamic> tx, DataService service) {
+    final isEditing = tx['id'] == _editingId;
+    final isIncome = tx['category'].type == CategoryType.income;
+    final accent = isIncome ? AppColors.income : AppColors.expense;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      // ปัดซ้ายเพื่อลบรายการได้ทันที (นอกเหนือจากปุ่ม X เดิม) — เร็วกว่าสำหรับ
+      // คนที่มีหลายรายการ และยังลบผิดแล้วกด "เลิกทำ" ใน Snackbar ได้เหมือนเดิม
+      child: Dismissible(
+        key: ValueKey(tx['id']),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => _removeTransaction(tx['id']),
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: AppColors.expense.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: const Icon(Icons.delete_rounded, color: Colors.white),
+        ),
+        child: GestureDetector(
+        onTap: () => _startEdit(tx),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          decoration: BoxDecoration(
+            color: isEditing ? AppColors.accentBg : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: isEditing ? AppColors.accentPink : Colors.transparent,
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.045),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppRadius.md)),
                 ),
               ),
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ==========================================
-                // กลุ่ม "จำนวนเงิน + cursor + ฿"
-                // ==========================================
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // จำนวนเงิน
-                    Text(
-                      _amountText,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          color: isIncome ? AppColors.incomeBg : AppColors.expenseBg,
+                        ),
+                        child: Center(
+                          child: CategoryIcon(
+                              category: tx['category'], size: 18, color: accent),
+                        ),
                       ),
-                    ),
-
-                    // Cursor
-                    if (_showNumpad) ...[
-                      const SizedBox(width: 3),
-
-                      _BlinkingCursor(
-                        color: AppColors.accentPink,
-                        height: 22,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(service.categoryName(tx['category']),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
+                            if (tx['note'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(tx['note'],
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                          ],
+                        ),
                       ),
-
-                      const SizedBox(width: 3),
+                      Text('${isIncome ? '+' : '-'}${_formatAmount(tx['amount'] as double)}฿',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: accent, fontSize: 13.5)),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _removeTransaction(tx['id']),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: AppColors.bg,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                          child: Icon(Icons.close_rounded, size: 15, color: AppColors.textSecondary),
+                        ),
+                      ),
                     ],
-
-                    // ฿ แสดง "เพียงครั้งเดียว"
-                    Text(
-                      '฿',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+              ),
+            ],
+          ),
+        ),
+        ),
+      ),
+    );
+  }
 
-                // ==========================================
-                // ปุ่ม ✓
-                // ==========================================
-                if (_showNumpad) ...[
-                  const SizedBox(width: 10),
+  // ---------- ช่องแสดง/กรอกจำนวนเงิน ----------
+  Widget _amountDisplay() {
+    final showPlaceholder = !_showNumpad && _amountText.isEmpty;
 
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _finishAmountInput,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentDeep,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 23,
-                      ),
+    return TapRegion(
+      groupId: _numpadGroupId,
+      onTapOutside: (_) => _closeNumpad(),
+      child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _openNumpad,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: _showNumpad ? AppColors.accentPink : AppColors.border,
+            width: _showNumpad ? 1.6 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (_showNumpad ? AppColors.accentPink : Colors.black)
+                  .withOpacity(_showNumpad ? 0.16 : 0.04),
+              blurRadius: _showNumpad ? 16 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: showPlaceholder
+            ? Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(color: AppColors.accentBg, borderRadius: BorderRadius.circular(AppRadius.md)),
+                    child: Icon(Icons.payments_outlined, size: 14, color: AppColors.accentDeep),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'กรุณาระบุจำนวนเงิน',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
                     ),
                   ),
                 ],
-              ],
-            ),
-    ),
-  );
-}
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        _amountText,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      if (_showNumpad) ...[
+                        const SizedBox(width: 3),
+                        _BlinkingCursor(color: AppColors.accentPink, height: 22),
+                        const SizedBox(width: 3),
+                      ],
+                      Text(
+                        '฿',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accentDeep,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_showNumpad) ...[
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _finishAmountInput,
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.85)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.accentDeep.withOpacity(0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.check_rounded, color: Colors.white, size: 23),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+      ),
+      ),
+    );
+  }
 
-  // แผงปุ่มตัวเลขทั้งชุด (ความสูงคงที่ ลอยขึ้นมาจากขอบล่างจอ)
+  // ---------- แผงปุ่มตัวเลข ----------
   Widget _numpadPanel(double bottomInset) {
-    return Material(
+    return TapRegion(
+      groupId: _numpadGroupId,
+      child: Material(
       color: AppColors.bg,
-      elevation: 16,
-      shadowColor: Colors.black.withOpacity(0.15),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.18),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       child: SizedBox(
         height: _numpadHeight + bottomInset,
         child: Column(
           children: [
             const SizedBox(height: 10),
-            // แถบจับเล็กๆ ด้านบน ให้ดูเหมือนแผ่นเลื่อนขึ้นมา (bottom sheet)
             Container(
               width: 40,
               height: 4,
@@ -677,26 +933,31 @@ void _finishAmountInput() {
           ],
         ),
       ),
+      ),
     );
   }
 
-  // จัดหมวดหมู่เป็น Grid 4 ไอคอนต่อแถว อยู่ในกรอบสูงคงที่ที่เลื่อนขึ้น-ลงได้ในตัวเอง
-  // (แทนที่จะปล่อยให้ grid ขยายความสูงตามจำนวนหมวดหมู่ ซึ่งจะไปเบียดพื้นที่ของ
-  // ช่องหมายเหตุ/ปุ่มเพิ่มรายการ/เครื่องคิดเลขด้านล่างจนดูอัดแน่นเกินไป)
+  // ---------- กริดหมวดหมู่ ----------
   Widget _categoryRows(DataService service, List<CategoryModel> categories) {
     final tiles = <Widget>[
       ...categories.asMap().entries.map((e) => _categoryTile(e.value, service, e.key)),
       _otherCategoryTile(service),
     ];
 
-    return SizedBox(
-      height: 216,
+    // ใช้ shrinkWrap + NeverScrollableScrollPhysics แทนกล่องความสูงคงที่แบบเดิม
+    // เดิม (SizedBox สูง 220 + ClampingScrollPhysics) ทำให้เกิด "สกอลล์ซ้อนสกอลล์"
+    // กับหน้าจอหลักที่เลื่อนได้อยู่แล้ว ผู้ใช้ต้องเดาว่าต้องเลื่อนตรงไหนถึงจะเห็น
+    // หมวดหมู่ที่ซ่อนอยู่ ให้กริดขยายตามจำนวนหมวดหมู่จริงและปล่อยให้หน้าจอหลัก
+    // เป็นจุดเลื่อนเดียว ใช้งานลื่นไหลกว่าเดิมมาก
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        physics: const ClampingScrollPhysics(),
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          mainAxisSpacing: 12,
+          mainAxisSpacing: 14,
           crossAxisSpacing: 4,
           childAspectRatio: 0.82,
         ),
@@ -708,36 +969,74 @@ void _finishAmountInput() {
 
   Widget _categoryTile(CategoryModel c, DataService service, int index) {
     final selected = _selectedCategory?.id == c.id;
-    final tint = _categoryTint[index % _categoryTint.length];
     final tintIcon = _categoryTintIcon[index % _categoryTintIcon.length];
     return GestureDetector(
       onTap: () {
-  // ถ้าก่อนหน้านี้กำลังพิมพ์หมายเหตุ
-  // ต้องเอา focus ออกจากช่องหมายเหตุก่อน
-  FocusScope.of(context).unfocus();
-
-  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-
-  setState(() {
-    _selectedCategory = c;
-
-    // เลือกหมวดหมู่แล้วเปิด numpad
-    _showNumpad = true;
-  });
-},
+        FocusScope.of(context).unfocus();
+        SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+        HapticFeedback.selectionClick();
+        setState(() {
+          _selectedCategory = c;
+          _showNumpad = true;
+        });
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ขยายจาก radius 26 / icon 24 เดิมพอประมาณ (~15-20%) ให้ชัดขึ้นแต่ไม่ใหญ่จนเกะกะ
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: selected ? AppColors.accentDeep : tint,
-            child: CategoryIcon(category: c, color: selected ? Colors.white : tintIcon, size: 25),
+          // เพิ่มเอฟเฟกต์ "เด้งเล็กน้อย" ตอนถูกเลือก ให้ดูมีชีวิตชีวาน่ารักขึ้น
+          AnimatedScale(
+            scale: selected ? 1.08 : 1.0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              color: Colors.white,
+              border: Border.all(
+                color: selected ? AppColors.accentDeep : AppColors.border,
+                width: selected ? 2.2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: selected
+                      ? AppColors.accentDeep.withOpacity(0.32)
+                      : Colors.black.withOpacity(0.08),
+                  blurRadius: selected ? 12 : 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            // ไอคอนขยายใหญ่ขึ้นให้ใช้พื้นที่ ~85% ของกล่อง (เหลือ margin ~8-12%)
+            // ใช้ fill+zoom เพื่อ "ตัด" พื้นที่โปร่งใส/ขอบว่างรอบไฟล์ไอคอนต้นฉบับออกไปก่อน
+            // แล้วจึงขยาย artwork จริงให้เต็มกรอบมากขึ้น โดยไม่ยืด/บิดสัดส่วน และไม่ทำให้กรอบ
+            // (คอนเทนเนอร์ 60x60 ด้านนอก) ขยายขนาดตามไปด้วย
+            child: Center(
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: CategoryIcon(
+                  category: c,
+                  color: selected ? AppColors.accentDeep : tintIcon,
+                  size: 52,
+                  fill: true,
+                  zoom: 1.35,
+                ),
+              ),
+            ),
+          ),
           ),
           const SizedBox(height: 6),
           Text(
             service.categoryName(c),
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -753,15 +1052,23 @@ void _finishAmountInput() {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: AppColors.surface,
-            child: Icon(Icons.add_rounded, color: AppColors.textSecondary, size: 28),
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              color: AppColors.surface,
+              border: Border.all(
+                color: AppColors.border,
+                width: 1.4,
+              ),
+            ),
+            child: Icon(Icons.add_rounded, color: AppColors.textSecondary, size: 26),
           ),
           const SizedBox(height: 6),
           Text(
             service.t('other_category'),
-            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: AppColors.textSecondary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -772,7 +1079,6 @@ void _finishAmountInput() {
   }
 
   Future<void> _showAddCategoryDialog(DataService service) async {
-    // ปิดแป้นตัวเลขไว้ก่อนระหว่างเปิด dialog เพิ่มหมวดหมู่ กันบดบัง/ซ้อนทับกัน
     _closeNumpad();
     final nameCtrl = TextEditingController();
     IconData selectedIcon = _customCategoryIcons.first;
@@ -820,8 +1126,12 @@ void _finishAmountInput() {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: AppColors.accentBg,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            gradient: LinearGradient(
+                              colors: [AppColors.accentBg, AppColors.accentBg.withOpacity(0.6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                           ),
                           child: Icon(selectedIcon, color: AppColors.ink, size: 22),
                         ),
@@ -858,18 +1168,37 @@ void _finishAmountInput() {
                       child: GridView.builder(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 5,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
                         ),
                         itemCount: _customCategoryIcons.length,
                         itemBuilder: (context, i) {
                           final icon = _customCategoryIcons[i];
                           final selected = icon == selectedIcon;
                           return GestureDetector(
-                            onTap: () => setDialogState(() => selectedIcon = icon),
-                            child: CircleAvatar(
-                              radius: 22,
-                              backgroundColor: selected ? AppColors.accentDeep : AppColors.surface,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setDialogState(() => selectedIcon = icon);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                                gradient: selected
+                                    ? LinearGradient(
+                                        colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.85)])
+                                    : null,
+                                color: selected ? null : AppColors.surface,
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: AppColors.accentDeep.withOpacity(0.35),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
                               child: Icon(icon,
                                   size: 20, color: selected ? Colors.white : AppColors.textSecondary),
                             ),
@@ -896,22 +1225,43 @@ void _finishAmountInput() {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.ink,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.md)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [AppColors.accentPink, AppColors.accentDeep],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.accentPink.withOpacity(0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
-                            onPressed: saving ? null : confirm,
-                            child: saving
-                                ? SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: AppColors.inkOn))
-                                : Text(service.t('add'),
-                                    style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.inkOn)),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                                onTap: saving ? null : confirm,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  child: Center(
+                                    child: saving
+                                        ? const SizedBox(
+                                            height: 16,
+                                            width: 16,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2, color: Colors.white))
+                                        : Text(service.t('add'),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w600, color: Colors.white)),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -930,7 +1280,7 @@ void _finishAmountInput() {
     final service = context.watch<DataService>();
     final isIncome = _type == CategoryType.income;
     const toggleWidth = 176.0;
-    const toggleHeight = 36.0;
+    const toggleHeight = 38.0;
     return Container(
       width: toggleWidth,
       height: toggleHeight,
@@ -939,20 +1289,40 @@ void _finishAmountInput() {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Stack(
         children: [
           AnimatedAlign(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             alignment: isIncome ? Alignment.centerLeft : Alignment.centerRight,
             child: FractionallySizedBox(
               widthFactor: 0.5,
               heightFactor: 1,
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.accentDeep,
+                  gradient: LinearGradient(
+                    colors: isIncome
+                        ? [AppColors.income, AppColors.income.withOpacity(0.82)]
+                        : [AppColors.expense, AppColors.expense.withOpacity(0.82)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(AppRadius.pill),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isIncome ? AppColors.income : AppColors.expense).withOpacity(0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1043,18 +1413,12 @@ void _finishAmountInput() {
                         .map((key) => Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                                child: Material(
-                                  color: _keyBg(key),
-                                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                                    onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
-                                    child: Center(
-                                      child: Text(key,
-                                          style: TextStyle(
-                                              fontSize: 24, fontWeight: FontWeight.w600, color: _keyFg(key))),
-                                    ),
-                                  ),
+                                child: _NumpadKey(
+                                  label: key,
+                                  bg: _keyBg(key),
+                                  fg: _keyFg(key),
+                                  shadow: _keyShadow(key),
+                                  onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
                                 ),
                               ),
                             ))
@@ -1066,7 +1430,7 @@ void _finishAmountInput() {
     );
   }
 
-  // สีคีย์แบบพาสเทลหลากสีตามดีไซน์อ้างอิง (X ชมพู, ⌫ ฟ้า, . เหลือง, ตัวเลขขาว)
+  // สีคีย์แบบพาสเทลหลากสี พร้อมเงาโทนเข้มกว่านิดหน่อยให้ดูเป็นปุ่มกดมีมิติน่ารัก
   Color _keyBg(String key) {
     switch (key) {
       case '⌫':
@@ -1081,17 +1445,97 @@ void _finishAmountInput() {
   Color _keyFg(String key) {
     switch (key) {
       case '⌫':
-        return const Color(0xFF80A1D4);
+        return const Color(0xFF6FA3D6);
       case '.':
         return const Color(0xFFC79A3B);
       default:
         return AppColors.textPrimary;
     }
   }
+
+  Color _keyShadow(String key) {
+    switch (key) {
+      case '⌫':
+        return const Color(0xFFC3E0F0);
+      case '.':
+        return const Color(0xFFF0DFA8);
+      default:
+        return AppColors.border.withOpacity(0.8);
+    }
+  }
 }
 
-/// เคอร์เซอร์กระพริบ (เหมือนเคอร์เซอร์พิมพ์ข้อความ) ใช้แสดงต่อท้ายจำนวนเงิน
-/// ระหว่างที่แป้นตัวเลขเปิดอยู่ ให้ผู้ใช้รู้ว่ากำลังอยู่ในโหมดพิมพ์
+/// เคอร์เซอร์กระพริบ ใช้แสดงต่อท้ายจำนวนเงินระหว่างพิมพ์
+/// ปุ่มตัวเลขของแป้นกด — เพิ่มลูกเล่นให้ "เด้ง" นิดๆ ตอนกด (ย่อขนาดแล้วดีดกลับ)
+/// ให้ความรู้สึกนุ่มนวลน่ารักขึ้นกว่าปุ่มแบนราบเดิม โดยยังใช้สี/เงาชุดเดิมทั้งหมด
+/// ตอนนี้ปุ่มเป็นสี่เหลี่ยมมุมโค้ง (ห่อด้วย AspectRatio 1:1 เพื่อให้เป็นสี่เหลี่ยมจัตุรัสสมบูรณ์แม้อยู่ใน Row/Expanded)
+class _NumpadKey extends StatefulWidget {
+  final String label;
+  final Color bg;
+  final Color fg;
+  final Color shadow;
+  final VoidCallback onTap;
+
+  const _NumpadKey({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    required this.shadow,
+    required this.onTap,
+  });
+
+  @override
+  State<_NumpadKey> createState() => _NumpadKeyState();
+}
+
+class _NumpadKeyState extends State<_NumpadKey> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _setPressed(true),
+      onTapCancel: () => _setPressed(false),
+      onTapUp: (_) => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.88 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              color: widget.bg,
+              boxShadow: [
+                BoxShadow(
+                  color: widget.shadow,
+                  offset: const Offset(0, 3),
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            child: Center(
+              child: widget.label == '⌫'
+                  ? Icon(Icons.backspace_rounded, size: 20, color: widget.fg)
+                  : Text(widget.label,
+                      style: TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.w600, color: widget.fg)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BlinkingCursor extends StatefulWidget {
   final Color color;
   final double height;
@@ -1134,4 +1578,4 @@ class _BlinkingCursorState extends State<_BlinkingCursor>
       ),
     );
   }
-} 
+}

@@ -45,7 +45,7 @@ class GoalSavingScreen extends StatelessWidget {
             Text(service.t('goal_saving'),
                 style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             const SizedBox(width: 6),
-            const Text('🐷', style: TextStyle(fontSize: 16)),
+            const Text('', style: TextStyle(fontSize: 16)),
           ],
         ),
       ),

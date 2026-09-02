@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/data_service.dart';
+import '../widgets/period_selector.dart' show PastelCalendarDialog;
 
 
 const List<IconData> _goalIcons = [
@@ -12,7 +13,18 @@ const List<IconData> _goalIcons = [
   Icons.pets, Icons.school,
 ];
 
+// ชุดสีพาสเทลของไอคอนเป้าหมาย (โทนเดียวกับหน้า Add Income/Expense)
+const List<Color> _goalTint = [
+  Color(0xFFDCEEF7), Color(0xFFFBE1E9), Color(0xFFFFF3D2), Color(0xFFE7E3F7),
+  Color(0xFFDFF3E7), Color(0xFFFFE8D9), Color(0xFFDCF3F1), Color(0xFFF3E4EF),
+];
+const List<Color> _goalTintIcon = [
+  Color(0xFF6FA3D6), Color(0xFFD9789B), Color(0xFFC79A3B), Color(0xFF8C79C9),
+  Color(0xFF54A57E), Color(0xFFDB8A55), Color(0xFF4FA79C), Color(0xFFB1699F),
+];
+
 /// หน้า Add Goal Saving (3.4.12) - เพิ่มเป้าหมายการออมเงินใหม่ลง SQLite
+/// ปรับดีไซน์ให้นุ่มนวล มีมิติ และเพิ่มช่องหมายเหตุ (optional) ให้เหมือนหน้า Add Income/Expense
 class AddGoalSavingScreen extends StatefulWidget {
   const AddGoalSavingScreen({super.key});
 
@@ -28,6 +40,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
 
   IconData _selectedIcon = _goalIcons.first;
   final _nameCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
   String _amountText = '';
   DateTime _targetDate = DateTime.now().add(const Duration(days: 180));
   bool _saving = false;
@@ -38,15 +51,17 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _noteCtrl.dispose();
     super.dispose();
   }
 
   void _openNumpad() {
-    // เอา focus ออกจากช่องชื่อเป้าหมาย
+    // เอา focus ออกจากช่องชื่อเป้าหมาย/หมายเหตุ
     FocusScope.of(context).unfocus();
 
     // ซ่อน keyboard ของมือถือ
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    HapticFeedback.selectionClick();
 
     setState(() {
       _showNumpad = true;
@@ -67,6 +82,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   void _finishAmountInput() {
     FocusScope.of(context).unfocus();
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    HapticFeedback.lightImpact();
 
     setState(() {
       _showNumpad = false;
@@ -74,6 +90,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   }
 
   void _pressDigit(String d) {
+    HapticFeedback.selectionClick();
     setState(() {
       if (d == '.' && _amountText.contains('.')) return;
       _amountText += d;
@@ -82,6 +99,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
 
   void _backspace() {
     if (_amountText.isEmpty) return;
+    HapticFeedback.selectionClick();
     setState(() => _amountText = _amountText.substring(0, _amountText.length - 1));
   }
 
@@ -96,12 +114,14 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
     }
 
     setState(() => _saving = true);
+    HapticFeedback.mediumImpact();
 
     final error = await service.addGoal(
           name: _nameCtrl.text,
           targetAmount: amount,
           targetDate: _targetDate,
           icon: _selectedIcon,
+          note: _noteCtrl.text.isEmpty ? null : _noteCtrl.text,
         );
 
     if (!mounted) return;
@@ -129,16 +149,9 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
         title: Text(service.t('goal_saving'),
             style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
         actions: [
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
-                : Text(service.t('save'),
-                    style: TextStyle(
-                        color: AppColors.ink, fontWeight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(child: _saveButton(service)),
           ),
         ],
       ),
@@ -156,58 +169,121 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // ----- 1. ชื่อเป้าหมาย -----
                           AppTextField(
                             controller: _nameCtrl,
                             hint: service.t('goal_name_hint'),
                             icon: Icons.flag_outlined,
                           ),
-                          const SizedBox(height: 18),
-                          Text(service.t('categories'), style: AppTextStyles.heading),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 14,
-                            runSpacing: 12,
-                            children: _goalIcons.map((icon) {
-                              final selected = icon == _selectedIcon;
-                              return GestureDetector(
-                                onTap: () => setState(() => _selectedIcon = icon),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  child: CircleAvatar(
-                                    radius: 26,
-                                    backgroundColor: selected ? AppColors.accentDeep : AppColors.surface,
-                                    child: Icon(icon,
-                                        size: 24, color: selected ? Colors.white : AppColors.textSecondary),
+                          const SizedBox(height: 20),
+                          // ----- 2. หมวดหมู่ (เลือกไอคอนเป้าหมาย) -----
+                          Row(
+                            children: [
+                              Text(service.t('categories'), style: AppTextStyles.heading),
+                              const Spacer(),
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      _goalTint[_goalIcons.indexOf(_selectedIcon) % _goalTint.length],
+                                      Colors.white,
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _goalTintIcon[_goalIcons.indexOf(_selectedIcon) % _goalTintIcon.length]
+                                          .withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(_selectedIcon,
+                                    size: 16,
+                                    color: _goalTintIcon[_goalIcons.indexOf(_selectedIcon) % _goalTintIcon.length]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 14,
+                            children: _goalIcons.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final icon = entry.value;
+                              final selected = icon == _selectedIcon;
+                              final tint = _goalTint[i % _goalTint.length];
+                              final tintIcon = _goalTintIcon[i % _goalTintIcon.length];
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _selectedIcon = icon);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOut,
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: selected
+                                        ? LinearGradient(
+                                            colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.82)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          )
+                                        : null,
+                                    color: selected ? null : tint,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: selected
+                                            ? AppColors.accentDeep.withOpacity(0.38)
+                                            : tintIcon.withOpacity(0.18),
+                                        blurRadius: selected ? 12 : 6,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(icon,
+                                      size: 23, color: selected ? Colors.white : tintIcon),
                                 ),
                               );
                             }).toList(),
                           ),
-                          const SizedBox(height: 18),
-                          AppCard(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.event_outlined, color: AppColors.textSecondary),
-                              title: Text(service.t('target_date_label'),
-                                  style: TextStyle(fontSize: 13.5, color: AppColors.textPrimary)),
-                              subtitle: Text('${_targetDate.day}/${_targetDate.month}/${_targetDate.year}',
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                              trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                              onTap: () async {
-                                _closeNumpad();
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _targetDate,
-                                  firstDate: DateTime.now(),
-                                  lastDate: DateTime.now().add(const Duration(days: 3650)),
-                                );
-                                if (picked != null) setState(() => _targetDate = picked);
-                              },
-                            ),
-                          ),
+                          const SizedBox(height: 20),
+                          // ----- 3. วันที่เป้าหมาย -----
+                          _dateCard(service),
                           const SizedBox(height: 16),
                         ],
+                      ),
+                    ),
+                  ),
+                  // ----- 4. ช่องหมายเหตุ (ไม่บังคับ) -----
+                  // ย้ายออกจากพื้นที่ scroll มาไว้ในโซนคงที่ด้านล่าง ให้ติดกันพอดี
+                  // กับกล่อง "กรุณากรอกจำนวนเงิน" ด้านล่าง (ไม่มีช่องว่างมาคั่น)
+                  // และจะเลื่อนขึ้น/ซ่อนตอนแป้นตัวเลขเปิดอยู่ กันไม่ให้แป้นบัง
+                  ClipRect(
+                    child: AnimatedAlign(
+                      duration: _numpadAnim,
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      heightFactor: _showNumpad ? 0 : 1,
+                      child: AnimatedOpacity(
+                        duration: _numpadAnim,
+                        opacity: _showNumpad ? 0 : 1,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: AppTextField(
+                            controller: _noteCtrl,
+                            hint: service.t('note_optional'),
+                            icon: Icons.edit_note_rounded,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -249,6 +325,109 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
     );
   }
 
+  // ---------- ปุ่มบันทึกบน AppBar ----------
+  Widget _saveButton(DataService service) {
+    return GestureDetector(
+      onTap: _saving ? null : _save,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.accentPink, AppColors.accentDeep],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.accentPink.withOpacity(0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: _saving
+            ? const SizedBox(
+                height: 15,
+                width: 15,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Text(service.t('save'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+      ),
+    );
+  }
+
+  // ---------- การ์ดเลือกวันที่เป้าหมาย ----------
+  Widget _dateCard(DataService service) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.045),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () async {
+            _closeNumpad();
+            final isThai = service.currentLanguage != 'English';
+            final picked = await showDialog<DateTime>(
+              context: context,
+              barrierColor: Colors.black.withOpacity(0.45),
+              builder: (_) => PastelCalendarDialog(
+                initialDate: _targetDate,
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 3650)),
+                isThai: isThai,
+              ),
+            );
+            if (picked != null) setState(() => _targetDate = picked);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.event_rounded, color: AppColors.accentDeep, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(service.t('target_date_label'),
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const SizedBox(height: 2),
+                      Text('${_targetDate.day}/${_targetDate.month}/${_targetDate.year}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // กล่องแสดง/กรอกจำนวนเงิน: มีกรอบสีเดียวกับช่องอื่นๆ, มีลายน้ำตอนยังไม่กรอก,
   // และเคอร์เซอร์กระพริบอยู่ "หน้า" สัญลักษณ์ ฿ ระหว่างที่กำลังพิมพ์
   Widget _amountDisplay() {
@@ -258,23 +437,38 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _openNumpad,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: _showNumpad ? AppColors.accentDeep : AppColors.border,
-            width: _showNumpad ? 1.4 : 1,
+            width: _showNumpad ? 1.6 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: (_showNumpad ? AppColors.accentDeep : Colors.black)
+                  .withOpacity(_showNumpad ? 0.16 : 0.04),
+              blurRadius: _showNumpad ? 16 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: showPlaceholder
-            ? Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  service.t('enter_valid_amount'),
-                  style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-                ),
+            ? Row(
+                children: [
+                  Icon(Icons.savings_outlined, size: 17, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      service.t('enter_valid_amount'),
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -287,7 +481,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                       Text(
                         _amountText,
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                       ),
                       if (_showNumpad) ...[
                         const SizedBox(width: 3),
@@ -297,7 +491,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                       Text(
                         '฿',
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.accentDeep),
                       ),
                     ],
                   ),
@@ -309,7 +503,21 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                       child: Container(
                         width: 38,
                         height: 38,
-                        decoration: BoxDecoration(color: AppColors.accentDeep, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.85)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.accentDeep.withOpacity(0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
                         child: const Icon(Icons.check_rounded, color: Colors.white, size: 23),
                       ),
                     ),
@@ -324,8 +532,8 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   Widget _numpadPanel(double bottomInset) {
     return Material(
       color: AppColors.bg,
-      elevation: 16,
-      shadowColor: Colors.black.withOpacity(0.15),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.18),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       child: SizedBox(
         height: _numpadHeight + bottomInset,
@@ -367,16 +575,33 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                         .map((key) => Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                                child: Material(
-                                  color: _keyBg(key),
-                                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                                    onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
-                                    child: Center(
-                                      child: Text(key,
-                                          style: TextStyle(
-                                              fontSize: 24, fontWeight: FontWeight.w600, color: _keyFg(key))),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: _keyBg(key),
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _keyShadow(key),
+                                        offset: const Offset(0, 3),
+                                        blurRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(18),
+                                      onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
+                                      child: Center(
+                                        child: key == '⌫'
+                                            ? Icon(Icons.backspace_rounded, size: 20, color: _keyFg(key))
+                                            : Text(key,
+                                                style: TextStyle(
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: _keyFg(key))),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -404,11 +629,22 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   Color _keyFg(String key) {
     switch (key) {
       case '⌫':
-        return const Color(0xFF80A1D4);
+        return const Color(0xFF6FA3D6);
       case '.':
         return const Color(0xFFC79A3B);
       default:
         return AppColors.textPrimary;
+    }
+  }
+
+  Color _keyShadow(String key) {
+    switch (key) {
+      case '⌫':
+        return const Color(0xFFC3E0F0);
+      case '.':
+        return const Color(0xFFF0DFA8);
+      default:
+        return AppColors.border.withOpacity(0.8);
     }
   }
 }
