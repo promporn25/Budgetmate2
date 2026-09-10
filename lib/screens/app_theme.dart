@@ -36,7 +36,7 @@ class AppColors {
 
   static Color get textPrimary => _dark ? const Color(0xFFEDF2FF) : const Color(0xFF283350);
   static Color get textSecondary => _dark ? const Color(0xFFAAB8DD) : const Color(0xFF8493B3);
-  static Color get textMuted => _dark ? const Color(0xFF69759A) : const Color(0xFFBCC8E2);
+  static Color get textMuted => _dark ? const Color(0xFFAAB8D5) : const Color(0xFFBCC8E2);
 
   static Color get success => _dark ? const Color(0xFF7FD9A8) : const Color(0xFF3D9E73);
   static Color get successBg => _dark ? const Color(0xFF1F3A2E) : const Color(0xFFE4F8ED);
@@ -79,28 +79,28 @@ class AppRadius {
 /// หมายเหตุ: ต้องประกาศฟอนต์ 6 น้ำหนัก (200-700) ใน pubspec.yaml (ดูท้ายไฟล์)
 /// เพื่อให้ FontWeight.w200 ... FontWeight.w700 ที่ใช้อยู่ทั่วแอป (w600, w700,
 /// FontWeight.bold ฯลฯ) เลือกไฟล์ฟอนต์น้ำหนักที่ถูกต้องได้อัตโนมัติ
-const String _kAppFontFamily = 'Mali';
+const String appFontFamily = 'Mali';
 
 class AppTextStyles {
   static TextStyle get title => TextStyle(
-      fontFamily: _kAppFontFamily,
+      fontFamily: appFontFamily,
       fontSize: 22,
       fontWeight: FontWeight.w700,
       color: AppColors.textPrimary);
   static TextStyle get heading => TextStyle(
-      fontFamily: _kAppFontFamily,
+      fontFamily: appFontFamily,
       fontSize: 16,
       fontWeight: FontWeight.w600,
       color: AppColors.textPrimary);
   static TextStyle get label => TextStyle(
-      fontFamily: _kAppFontFamily,
+      fontFamily: appFontFamily,
       fontSize: 13,
       fontWeight: FontWeight.w600,
       color: AppColors.textPrimary);
   static TextStyle get hint => TextStyle(
-      fontFamily: _kAppFontFamily, color: AppColors.textMuted, fontSize: 14);
+      fontFamily: appFontFamily, color: AppColors.textMuted, fontSize: 14);
   static TextStyle get caption => TextStyle(
-      fontFamily: _kAppFontFamily, color: AppColors.textSecondary, fontSize: 12.5);
+      fontFamily: appFontFamily, color: AppColors.textSecondary, fontSize: 12.5);
 }
 
 /// สร้าง ThemeData ของแอปสำหรับ MaterialApp(theme:, darkTheme:, themeMode:)
@@ -121,7 +121,7 @@ class AppTheme {
     // (bodyMedium, titleLarge, labelSmall ฯลฯ) ที่ widget ต่างๆ ในแอปอาจใช้
     // แบบ implicit (ผ่าน Theme.of(context).textTheme หรือ Text('...') เฉยๆ)
     final baseTextTheme = isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
-    final appTextTheme = baseTextTheme.apply(fontFamily: _kAppFontFamily);
+    final appTextTheme = baseTextTheme.apply(fontFamily: appFontFamily);
 
     return ThemeData(
       useMaterial3: true,
@@ -146,7 +146,7 @@ class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
-            fontFamily: _kAppFontFamily, fontSize: 17, fontWeight: FontWeight.w600, color: ink),
+            fontFamily: appFontFamily, fontSize: 17, fontWeight: FontWeight.w600, color: ink),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: isDark ? const Color(0xFF1E2740) : Colors.white,
@@ -162,7 +162,7 @@ class AppTheme {
       textTheme: appTextTheme,
       // สำคัญ: เซ็ต fontFamily ตรงนี้ด้วย เผื่อ widget บางตัวอ้างอิง
       // ThemeData.fontFamily ตรงๆ แทนที่จะผ่าน textTheme
-      fontFamily: _kAppFontFamily,
+      fontFamily: appFontFamily,
     );
   }
 }
@@ -181,7 +181,7 @@ class AppHeader extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(6, MediaQuery.of(context).padding.top + 4, 16, 16),
       decoration: BoxDecoration(
-        color: AppColors.accent,
+        color: AppColors.brightness == Brightness.dark ? AppColors.surface : AppColors.accent,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(26),
           bottomRight: Radius.circular(26),
@@ -198,7 +198,7 @@ class AppHeader extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontFamily: _kAppFontFamily,
+                  fontFamily: appFontFamily,
                   fontWeight: FontWeight.w700,
                   fontSize: 17,
                   color: AppColors.ink),
@@ -304,7 +304,7 @@ class PrimaryButton extends StatelessWidget {
               )
             : Text(label,
                 style: TextStyle(
-                    fontFamily: _kAppFontFamily,
+                    fontFamily: appFontFamily,
                     color: fg,
                     fontSize: 15,
                     fontWeight: FontWeight.w600)),
@@ -359,12 +359,12 @@ class AppTextField extends StatelessWidget {
       textAlign: textAlign,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
-      style: style ?? TextStyle(fontFamily: _kAppFontFamily, fontSize: 15, color: AppColors.textPrimary),
+      style: style ?? TextStyle(fontFamily: appFontFamily, fontSize: 15, color: AppColors.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: AppTextStyles.hint,
         prefixText: prefixText,
-        prefixStyle: style ?? TextStyle(fontFamily: _kAppFontFamily, fontSize: 15, color: AppColors.textPrimary),
+        prefixStyle: style ?? TextStyle(fontFamily: appFontFamily, fontSize: 15, color: AppColors.textPrimary),
         prefixIcon: icon != null ? Icon(icon, color: AppColors.textSecondary, size: 21) : null,
         suffixIcon: toggleObscure != null
             ? IconButton(
@@ -395,7 +395,7 @@ class AppTextField extends StatelessWidget {
           borderSide: BorderSide(color: AppColors.accentDeep, width: 1.4),
         ),
         errorText: errorText,
-        errorStyle: TextStyle(fontFamily: _kAppFontFamily, color: AppColors.danger, fontSize: 12),
+        errorStyle: TextStyle(fontFamily: appFontFamily, color: AppColors.danger, fontSize: 12),
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       ),
     );
@@ -426,7 +426,7 @@ class MessageBanner extends StatelessWidget {
           Expanded(
               child: Text(text,
                   style: TextStyle(
-                      fontFamily: _kAppFontFamily, color: color, fontSize: 13, height: 1.35))),
+                      fontFamily: appFontFamily, color: color, fontSize: 13, height: 1.35))),
         ],
       ),
     );
@@ -555,7 +555,7 @@ class _CuteMascotPainter extends CustomPainter {
         text: TextSpan(
           text: label,
           style: TextStyle(
-              fontFamily: _kAppFontFamily, fontSize: r * 0.36, fontWeight: FontWeight.w700, color: _face),
+              fontFamily: appFontFamily, fontSize: r * 0.36, fontWeight: FontWeight.w700, color: _face),
         ),
         textDirection: TextDirection.ltr,
       )..layout();

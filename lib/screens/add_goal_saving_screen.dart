@@ -1,3 +1,5 @@
+import '../models/category_model.dart';
+import '../widgets/pastel_artwork.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -203,57 +205,26 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                                     ),
                                   ],
                                 ),
-                                child: Icon(_selectedIcon,
+                                child: GoalArtwork(_selectedIcon,
                                     size: 16,
                                     color: _goalTintIcon[_goalIcons.indexOf(_selectedIcon) % _goalTintIcon.length]),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 16,
-                            runSpacing: 14,
-                            children: _goalIcons.asMap().entries.map((entry) {
-                              final i = entry.key;
-                              final icon = entry.value;
-                              final selected = icon == _selectedIcon;
-                              final tint = _goalTint[i % _goalTint.length];
-                              final tintIcon = _goalTintIcon[i % _goalTintIcon.length];
-                              return GestureDetector(
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setState(() => _selectedIcon = icon);
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  curve: Curves.easeOut,
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: selected
-                                        ? LinearGradient(
-                                            colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.82)],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          )
-                                        : null,
-                                    color: selected ? null : tint,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: selected
-                                            ? AppColors.accentDeep.withOpacity(0.38)
-                                            : tintIcon.withOpacity(0.18),
-                                        blurRadius: selected ? 12 : 6,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(icon,
-                                      size: 23, color: selected ? Colors.white : tintIcon),
-                                ),
-                              );
-                            }).toList(),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: EdgeInsets.zero,
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 4,
+                              mainAxisExtent: _showNumpad ? 72 : 96,
+                            ),
+                            itemCount: _goalIcons.length,
+                            itemBuilder: (context, index) => _goalCategoryTile(
+                              defaultCategories[index], service, index),
                           ),
                           const SizedBox(height: 20),
                           // ----- 3. วันที่เป้าหมาย -----
@@ -359,6 +330,86 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
   }
 
   // ---------- การ์ดเลือกวันที่เป้าหมาย ----------
+  Widget _goalCategoryTile(CategoryModel c, DataService service, int index) {
+    final selected = _selectedIcon == c.icon;
+    final tintIcon = _goalTintIcon[index % _goalTintIcon.length];
+    final pastel = [AppColors.accentBg, AppColors.accentAltBg,
+      const Color(0xFFEAE5FA), const Color(0xFFE1F2EC)][index % 4];
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+        HapticFeedback.selectionClick();
+        setState(() {
+          _selectedIcon = c.icon;
+
+        });
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // เพิ่มเอฟเฟกต์ "เด้งเล็กน้อย" ตอนถูกเลือก ให้ดูมีชีวิตชีวาน่ารักขึ้น
+          AnimatedScale(
+            scale: selected ? 1.04 : 1.0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            child: AnimatedContainer(
+            duration: Duration.zero,
+            curve: Curves.easeOut,
+            width: _showNumpad ? 44 : 60,
+            height: _showNumpad ? 44 : 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(_showNumpad ? 15 : 20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [AppColors.surfaceAlt, Color.lerp(AppColors.card, pastel, 0.7)!],
+              ),
+              border: Border.all(
+                color: selected ? AppColors.accentPink : Color.lerp(AppColors.border, pastel, 0.6)!,
+                width: selected ? 2 : 1.3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: selected
+                      ? AppColors.accentPink.withOpacity(0.23)
+                      : AppColors.accentDeep.withOpacity(0.09),
+                  blurRadius: selected ? 12 : 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            // ไอคอนขยายใหญ่ขึ้นให้ใช้พื้นที่ ~85% ของกล่อง (เหลือ margin ~8-12%)
+            // ใช้ fill+zoom เพื่อ "ตัด" พื้นที่โปร่งใส/ขอบว่างรอบไฟล์ไอคอนต้นฉบับออกไปก่อน
+            // แล้วจึงขยาย artwork จริงให้เต็มกรอบมากขึ้น โดยไม่ยืด/บิดสัดส่วน และไม่ทำให้กรอบ
+            // (คอนเทนเนอร์ 60x60 ด้านนอก) ขยายขนาดตามไปด้วย
+            child: Center(
+              child: SizedBox(
+                width: _showNumpad ? 38 : 52,
+                height: _showNumpad ? 38 : 52,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.matrix([
+                    0.86, 0.08, 0.06, 0, 5,
+                    0.04, 0.91, 0.05, 0, 3,
+                    0.04, 0.09, 0.87, 0, 7,
+                    0, 0, 0, 1, 0,
+                  ]),
+                  child: CategoryIcon(
+                  category: c,
+                  color: selected ? AppColors.accentDeep : tintIcon,
+                  size: _showNumpad ? 38 : 52,
+                  fill: true,
+                  zoom: 1.12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _dateCard(DataService service) {
     return Container(
       decoration: BoxDecoration(
@@ -489,9 +540,9 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                         const SizedBox(width: 3),
                       ],
                       Text(
-                        '฿',
+                        context.watch<DataService>().currencySymbol,
                         style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.accentDeep),
+                            fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.ink),
                       ),
                     ],
                   ),
@@ -578,7 +629,7 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: _keyBg(key),
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(22),
                                     boxShadow: [
                                       BoxShadow(
                                         color: _keyShadow(key),
@@ -589,9 +640,9 @@ class _AddGoalSavingScreenState extends State<AddGoalSavingScreen> {
                                   ),
                                   child: Material(
                                     color: Colors.transparent,
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(22),
                                     child: InkWell(
-                                      borderRadius: BorderRadius.circular(18),
+                                      borderRadius: BorderRadius.circular(22),
                                       onTap: () => key == '⌫' ? _backspace() : _pressDigit(key),
                                       child: Center(
                                         child: key == '⌫'

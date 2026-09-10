@@ -1,3 +1,5 @@
+import '../widgets/pastel_artwork.dart';
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,7 +56,7 @@ class GoalSavingScreen extends StatelessWidget {
         color: AppColors.accentDeep,
         backgroundColor: AppColors.card,
         onRefresh: () async {
-          await Future.delayed(const Duration(milliseconds: 600));
+          await refreshAppData(context);
         },
         child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -124,7 +126,7 @@ class GoalSavingScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      Text('฿${service.balance.toStringAsFixed(2)}',
+                      Text(service.formatMoney(service.balance),
                           style: const TextStyle(
                               fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
                     ],
@@ -151,7 +153,16 @@ class GoalSavingScreen extends StatelessWidget {
                 final g = service.goals[i];
                 return Dismissible(
                   key: ValueKey(g.id),
-                  onDismissed: (_) async => service.deleteGoal(g.id),
+                  confirmDismiss: (_) async {
+                    try {
+                      await service.deleteGoal(g.id);
+                      return true;
+                    } catch (e) {
+                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${service.t('save_failed')}: $e')));
+                      return false;
+                    }
+                  },
                   background: Container(
                     decoration: BoxDecoration(
                       color: AppColors.dangerBg,
@@ -241,7 +252,7 @@ class _GoalCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(7),
                           decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: Icon(goal.icon, color: tintDeep, size: 17),
+                          child: GoalArtwork(goal.icon, color: tintDeep, size: 17),
                         ),
                         const Spacer(),
                         if (completed)
@@ -258,7 +269,7 @@ class _GoalCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const Spacer(),
-                    Text('฿${goal.savedAmount.toStringAsFixed(0)} / ฿${goal.targetAmount.toStringAsFixed(0)}',
+                    Text('${context.watch<DataService>().formatMoney(goal.savedAmount)} / ${context.watch<DataService>().formatMoney(goal.targetAmount)}',
                         style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary)),
                     const SizedBox(height: 8),
                     ClipRRect(
@@ -377,7 +388,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                                   ),
                                 ],
                               ),
-                              child: Icon(goal.icon, color: AppColors.accentDeep, size: 25),
+                              child: GoalArtwork(goal.icon, color: AppColors.accentDeep, size: 25),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -424,7 +435,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                                '฿${goal.savedAmount.toStringAsFixed(0)} / ฿${goal.targetAmount.toStringAsFixed(0)}',
+                                '${context.watch<DataService>().formatMoney(goal.savedAmount)} / ${context.watch<DataService>().formatMoney(goal.targetAmount)}',
                                 style: const TextStyle(
                                     color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
                             Text('${(goal.progress * 100).toStringAsFixed(0)}%',
@@ -446,7 +457,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                               child: _InfoStat(
                                 icon: Icons.account_balance_wallet_rounded,
                                 label: service.t('ledger_remaining'),
-                                value: '฿${service.balance.toStringAsFixed(2)}',
+                                value: service.formatMoney(service.balance),
                                 bg: AppColors.accentBg,
                                 iconColor: AppColors.accentDeep,
                               ),
@@ -456,7 +467,7 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                               child: _InfoStat(
                                 icon: Icons.flag_rounded,
                                 label: service.t('needed_more'),
-                                value: '฿${remaining.toStringAsFixed(2)}',
+                                value: service.formatMoney(remaining),
                                 bg: AppColors.accentAltBg,
                                 iconColor: const Color(0xFFC79A3B),
                               ),
@@ -471,8 +482,8 @@ Future<void> _showDepositDialog(BuildContext context, GoalModel goal) async {
                           controller: controller,
                           hint: '0.00',
                           autofocus: true,
-                          prefixText: '฿ ',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.accentDeep),
+                          prefixText: '${service.currentCurrency} ',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.ink),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),

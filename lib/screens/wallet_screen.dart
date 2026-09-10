@@ -1,3 +1,5 @@
+import '../models/goal_model.dart';
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -35,7 +37,7 @@ class WalletScreen extends StatelessWidget {
         color: AppColors.accentDeep,
         backgroundColor: AppColors.card,
         onRefresh: () async {
-          await Future.delayed(const Duration(milliseconds: 600));
+          await refreshAppData(context);
         },
         child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -68,7 +70,7 @@ class WalletScreen extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.accentDeep)),
+                              color: AppColors.ink)),
                       Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.accentDeep),
                     ],
                   ),
@@ -238,7 +240,7 @@ class WalletScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 3),
                             Flexible(
-                              child: Text('฿${value.toStringAsFixed(0)}',
+                              child: Text(context.watch<DataService>().formatMoney(value),
                                   style: TextStyle(
                                       color: dark,
                                       fontWeight: FontWeight.w800,
@@ -355,7 +357,7 @@ class _BalanceCard extends StatelessWidget {
                 const SizedBox(height: 18),
                 Text(service.t('total_balance'), style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 6),
-                Text('฿${service.balance.toStringAsFixed(2)}',
+                Text(service.formatMoney(service.balance),
                     style: const TextStyle(
                         color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
               ],
@@ -417,10 +419,11 @@ class _GoalPreviewCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.7),
+                        color: AppColors.brightness == Brightness.dark
+                            ? AppColors.surface : Colors.white.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(AppRadius.pill),
                       ),
-                      child: Text('${service.goals.length} ${service.t('goals_in_progress')}',
+                      child: Text('${service.goals.where((goal) => goal.status == GoalStatus.inProgress).length} ${service.t('goals_in_progress')}',
                           style: TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w600,

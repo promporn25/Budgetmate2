@@ -1,5 +1,6 @@
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
+import '../widgets/pastel_artwork.dart';
 
 /// ประเภทของหมวดหมู่ สอดคล้องกับ Entity Category (category_type)
 enum CategoryType { income, expense }
@@ -92,9 +93,13 @@ class CategoryIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final number = int.tryParse(category.id.replaceFirst('c', ''));
+    if (number != null && category.id == 'c${number.toString().padLeft(2, '0')}' && number >= 1 && number <= 55) {
+      return PastelArtwork(categoryNumber: number, size: size);
+    }
     final path = category.imagePath;
     if (path == null || path.isEmpty) {
-      return Icon(category.icon, size: size, color: color);
+      return GoalArtwork(category.icon, size: size, color: color);
     }
     if (fill) {
       // ใช้ BoxFit.contain แทน cover เพื่อให้ "ขนาดที่แสดงจริงของรูปปรับตามสัดส่วน

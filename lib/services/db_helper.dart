@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -9,10 +11,46 @@ class DBHelper {
   DBHelper._internal();
   static final DBHelper instance = DBHelper._internal();
 
-  final FirebaseFirestore _fs = FirebaseFirestore.instance;
+  // The existing database is named 'default', without parentheses.
+  final FirebaseFirestore _fs = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'default',
+  );
 
-  CollectionReference<Map<String, dynamic>> _col(String table) =>
-      _fs.collection(table);
+  CollectionReference<Map<String, dynamic>> _col(String table) {
+    if (table == 'categories') {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw StateError('กรุณาเข้าสู่ระบบก่อน');
+      return _fs.collection('users').doc(uid).collection('categories');
+    }
+    return _fs.collection(table);
+  }
+
+  /// Commit both records together and re-read the goal on concurrent updates.
+  Future<Map<String, dynamic>> transferToGoal(
+    String goalId, double amount, Map<String, dynamic> entry,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || entry['user_id'] != uid || !amount.isFinite || amount <= 0) {
+      throw StateError('ข้อมูลการโอนไม่ถูกต้อง');
+    }
+    final goalRef = _col('goals').doc(goalId);
+    return _fs.runTransaction((transaction) async {
+      final snapshot = await transaction.get(goalRef);
+      final data = snapshot.data();
+      if (data == null || data['user_id'] != uid) {
+        throw StateError('ไม่พบเป้าหมาย');
+      }
+      final saved = (data['saved_amount'] as num).toDouble() + amount;
+      final target = (data['target_amount'] as num).toDouble();
+      if (saved > target) throw StateError('จำนวนเงินเกินเป้าหมาย');
+      final updated = {...data, 'saved_amount': saved,
+        'status': saved >= target ? 'completed' : 'inProgress'};
+      transaction.update(goalRef, updated);
+      transaction.set(_col('transactions').doc(entry['id'] as String), entry);
+      return updated;
+    });
+  }
 
  
   Never _handleError(Object e, StackTrace st, String fallbackMessage) {
@@ -29,6 +67,14 @@ class DBHelper {
           throw Exception('$fallbackMessage (ไม่มีสิทธิ์เข้าถึงข้อมูล - ตรวจสอบ Firestore Security Rules)');
         case 'unavailable':
           throw Exception('$fallbackMessage (เชื่อมต่อ Firestore ไม่ได้ - เช็คอินเทอร์เน็ต/สถานะ Firebase)');
+        case 'failed-precondition':
+          // เกิดเมื่อ query ใช้ where + orderBy คนละ field กัน (เช่น where('user_id')
+          // ร่วมกับ orderBy('date')) ซึ่ง Firestore บังคับให้ต้องสร้าง Composite Index
+          // ก่อนใช้งานจริง ข้อความ e.message ของ Firebase จะมีลิงก์สำหรับกดสร้าง index
+          // อัตโนมัติแนบมาด้วย ให้เปิดลิงก์นั้นในเบราว์เซอร์แล้วกด "Create Index" ได้เลย
+          throw Exception(
+              '$fallbackMessage (ต้องสร้าง Firestore Index ก่อนใช้งาน query นี้ - '
+              'เปิดลิงก์ในข้อความต่อไปนี้เพื่อสร้าง index อัตโนมัติ: ${e.message})');
         default:
           throw Exception('$fallbackMessage (${e.code}: ${e.message})');
       }
@@ -42,7 +88,7 @@ class DBHelper {
   Future<int> insert(String table, Map<String, dynamic> data) async {
     final id = data['id'] as String;
     try {
-      await _col(table).doc(id).set(data).timeout(_dbTimeout);
+      await _col(table).doc(id).set(data);
       return 1;
     } catch (e, st) {
       _handleError(e, st, 'บันทึกไม่สำเร็จ');
@@ -62,7 +108,7 @@ class DBHelper {
         batch.set(_col(table).doc(id), data);
       }
       try {
-        await batch.commit().timeout(_dbTimeout);
+        await batch.commit();
       } catch (e, st) {
         _handleError(e, st, 'บันทึกไม่สำเร็จ');
       }
@@ -76,6 +122,16 @@ class DBHelper {
     List<Object?>? whereArgs,
     String? orderBy,
   }) async {
+    if (where?.trim() == 'id = ?' && whereArgs?.length == 1) {
+      try {
+        final snapshot = await _col(table).doc(whereArgs!.first.toString())
+            .get().timeout(_dbTimeout);
+        final data = snapshot.data();
+        return data == null ? [] : [data];
+      } catch (e, st) {
+        _handleError(e, st, 'โหลดข้อมูลไม่สำเร็จ');
+      }
+    }
     Query<Map<String, dynamic>> q = _col(table);
 
     if (where != null && whereArgs != null && whereArgs.isNotEmpty) {
@@ -107,7 +163,7 @@ class DBHelper {
   ) async {
     final id = whereArgs.first.toString();
     try {
-      await _col(table).doc(id).set(data, SetOptions(merge: true)).timeout(_dbTimeout);
+      await _col(table).doc(id).update(data);
       return 1;
     } catch (e, st) {
       _handleError(e, st, 'บันทึกไม่สำเร็จ');
@@ -117,7 +173,7 @@ class DBHelper {
   Future<int> delete(String table, String where, List<Object?> whereArgs) async {
     final id = whereArgs.first.toString();
     try {
-      await _col(table).doc(id).delete().timeout(_dbTimeout);
+      await _col(table).doc(id).delete();
       return 1;
     } catch (e, st) {
       _handleError(e, st, 'ลบไม่สำเร็จ');

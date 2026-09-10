@@ -1,10 +1,12 @@
+import '../widgets/pastel_artwork.dart';
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:budgetmate/screens/goal_saving_screen.dart';
 import 'package:budgetmate/screens/wallet_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:convert';
 import 'dart:io';
 import '../services/data_service.dart';
 import '../widgets/bottom_nav.dart';
@@ -255,6 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: _ActionButton(
                           icon: Icons.account_balance_wallet_rounded,
+                          artwork: const PastelArtwork(categoryNumber: 14, size: 48),
                           label: service.t('wallet_title'),
                           iconBg: AppColors.accentDeep,
                           cardBg: AppColors.accentBg,
@@ -268,6 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: _ActionButton(
                           icon: Icons.savings_rounded,
+                          artwork: const PastelArtwork(categoryNumber: 17, size: 48),
                           label: service.t('goal_saving'),
                           iconBg: AppColors.accentPink,
                           cardBg: AppColors.accentAltBg,
@@ -308,7 +312,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          // ฟองสบู่ตกแต่งมุมล่างขวา ให้เข้าชุดกับการ์ดอื่นๆ ในแอป
                           Positioned(
                             right: -12,
                             bottom: -16,
@@ -316,16 +319,24 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: 42,
                               height: 42,
                               decoration: BoxDecoration(
-                                  color: AppColors.accentDeep.withOpacity(0.08),
-                                  shape: BoxShape.circle),
+                                color: AppColors.accentDeep.withOpacity(0.08),
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
-                          Column(
-                            children: [
-                              _RateRow(buyLabel: service.t('buy'), sellLabel: service.t('sell'),
-                                  flag: const Text('🇺🇸', style: TextStyle(fontSize: 22)),
-                                  code: 'USD', buy: '31.55', sell: '31.75'),
-                            ],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                const Text('🇺🇸', style: TextStyle(fontSize: 22)),
+                                const SizedBox(width: 8),
+                                Text('USD', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                                const Spacer(),
+                                Text('${service.t('buy')} 31.55', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+                                const SizedBox(width: 12),
+                                Text('${service.t('sell')} 31.75', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -357,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w700,
-                                      color: AppColors.accentDeep),
+                                      color: AppColors.ink),
                                 ),
                                 Icon(Icons.chevron_right_rounded,
                                     size: 15, color: AppColors.accentDeep),
@@ -402,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await refreshAppData(context);
     if (mounted) setState(() {});
   }
 }
@@ -431,14 +442,34 @@ class _LegendDot extends StatelessWidget {
 }
 
 /// ส่วนหัวไล่เฉดฟ้าพาสเทลโค้งมนด้านล่าง: รูปโปรไฟล์ + คำทักทาย + กระดิ่งแจ้งเตือน (ไปหน้า History)
+///
+/// อัปเดต: รูปโปรไฟล์ตอนนี้ลอง decode จาก `service.currentUser.avatarBase64`
+/// (Base64 string ที่เก็บอยู่ใน Firestore) ก่อนเป็นอันดับแรก เพราะเป็นแหล่งข้อมูลจริง
+/// ที่ผูกกับบัญชีและตามไปทุกเครื่องที่ล็อกอิน ถ้ายังไม่มี (เช่นยังไม่เคยตั้งรูป) จะ
+/// fallback ไปที่ไฟล์แคชในเครื่อง (avatarPath) แล้วค่อย fallback สุดท้ายเป็นไอคอนคน
+/// default — เดิมโค้ดจุดนี้ดูแค่ avatarPath (ไฟล์ในเครื่อง) อย่างเดียว ทำให้เปลี่ยน
+/// มือถือเครื่องใหม่แล้วเห็นแต่ไอคอน default เสมอ
 class _SkyHeader extends StatelessWidget {
   final DataService service;
   const _SkyHeader({required this.service});
 
   @override
   Widget build(BuildContext context) {
+    final avatarBase64 = service.currentUser?.avatarBase64;
     final avatarPath = service.avatarPath;
-    final hasImage = avatarPath != null && File(avatarPath).existsSync();
+    final hasLocalImage = avatarPath != null && File(avatarPath).existsSync();
+
+    ImageProvider? avatarImage;
+    if (avatarBase64 != null && avatarBase64.isNotEmpty) {
+      try {
+        avatarImage = MemoryImage(base64Decode(avatarBase64));
+      } catch (_) {
+        avatarImage = null;
+      }
+    }
+    if (avatarImage == null && hasLocalImage) {
+      avatarImage = FileImage(File(avatarPath));
+    }
 
     return Container(
       width: double.infinity,
@@ -483,8 +514,10 @@ class _SkyHeader extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.white,
-                backgroundImage: hasImage ? FileImage(File(avatarPath)) : null,
-                child: hasImage ? null : Icon(Icons.person, color: AppColors.accentDeep, size: 24),
+                backgroundImage: avatarImage,
+                child: avatarImage == null
+                    ? Icon(Icons.person, color: AppColors.accentDeep, size: 24)
+                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -546,52 +579,10 @@ class _SkyTimeIcon extends StatelessWidget {
   }
 }
 
-class _RateRow extends StatelessWidget {
-  final Widget flag;
-  final String code, buy, sell, buyLabel, sellLabel;
-  const _RateRow({
-    required this.flag,
-    required this.code,
-    required this.buy,
-    required this.sell,
-    required this.buyLabel,
-    required this.sellLabel,
-  });
-
-  Widget _chip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text('$label $value',
-          style: TextStyle(
-              color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          flag,
-          const SizedBox(width: 8),
-          Text(code, style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const Spacer(),
-          _chip(buyLabel, buy),
-          const SizedBox(width: 8),
-          _chip(sellLabel, sell),
-        ],
-      ),
-    );
-  }
-}
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
+  final Widget? artwork;
   final String label;
   final Color iconBg;
   final Color cardBg;
@@ -599,6 +590,7 @@ class _ActionButton extends StatelessWidget {
 
   const _ActionButton({
     required this.icon,
+    this.artwork,
     required this.label,
     required this.iconBg,
     required this.cardBg,
@@ -610,22 +602,23 @@ class _ActionButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
+          constraints: const BoxConstraints(minHeight: 64),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
                 color: iconBg.withOpacity(0.20),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(18),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -641,16 +634,16 @@ class _ActionButton extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   child: Row(
                     children: [
-                      Container(
+                      artwork ?? Container(
                         width: 40,
                         height: 40,
                         decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                         child: Icon(icon, size: 20, color: iconBg),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           label,
@@ -659,6 +652,7 @@ class _ActionButton extends StatelessWidget {
                             fontSize: 14,
                             color: AppColors.textPrimary,
                           ),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -683,7 +677,7 @@ class _PinnedGoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fmt = NumberFormat('#,##0.00');
+    final service = context.watch<DataService>();
     final bool near = goal.isNearTarget as bool;
     return GestureDetector(
       onTap: onTap,
@@ -698,7 +692,7 @@ class _PinnedGoalCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: Icon(goal.icon, size: 16, color: AppColors.pinnedGoalIcon),
+                  child: GoalArtwork(goal.icon, size: 16, color: AppColors.pinnedGoalIcon),
                 ),
                 const Spacer(),
                 if (near)
@@ -711,7 +705,7 @@ class _PinnedGoalCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
-            Text(fmt.format(goal.targetAmount),
+            Text(service.formatMoney(goal.targetAmount),
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF6E7FA3))),
             const SizedBox(height: 10),
             ClipRRect(

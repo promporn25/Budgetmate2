@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,7 +12,6 @@ import '../models/transaction_model.dart';
 import '../models/goal_model.dart';
 import '../models/user_model.dart';
 import 'app_strings.dart';
-import '../screens/app_theme.dart'; // เพิ่มบรรทัดนี้
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -21,30 +22,60 @@ const _themeModeKey = 'budgetmate_theme_mode'; // 'light' | 'dark'
 const _successNotesKey = 'budgetmate_success_notes_enabled';
 
 /// DataService รวบรวมการทำงานของระบบทั้งหมดตามขอบเขตโครงงาน (1.3.1 - 1.3.4)
-/// เวอร์ชันนี้เก็บข้อมูลจริงลง SQLite ผ่าน DBHelper (ไม่ใช่ in-memory demo แล้ว)
+/// เวอร์ชันนี้เก็บข้อมูลจริงลง Firestore ผ่าน DBHelper ทุกจุดแล้ว (แก้บั๊ก
+/// offlineMode เดิมที่ทำให้รายการรายรับ-รายจ่ายไม่ถูกบันทึกจริง และแก้บั๊ก
+/// หมวดหมู่ที่ไม่เคยซิงก์กับ Firestore)
 /// - รายการ/เป้าหมายจะถูกโหลดเฉพาะของผู้ใช้ที่ล็อกอินอยู่ (currentUser)
 /// - การยืนยันตัวตนทั้งหมด (สมัครสมาชิก/ล็อกอินด้วยอีเมล/ล็อกอินด้วย Google/ลืมรหัสผ่าน/
 ///   เปลี่ยนรหัสผ่าน) เชื่อมต่อกับ Firebase Authentication โดยตรง ไม่มีการเก็บรหัสผ่าน
-///   หรือทำ hash เองในแอปอีกต่อไป ส่วนข้อมูลโปรไฟล์ (ชื่อ/ภาษา/สกุลเงิน ฯลฯ) เก็บใน
-///   Firestore โดยใช้ uid จาก Firebase Auth เป็น document id
+///   หรือทำ hash เองในแอปอีกต่อไป ส่วนข้อมูลโปรไฟล์ (ชื่อ/ภาษา/สกุลเงิน/รูปโปรไฟล์ ฯลฯ)
+///   เก็บใน Firestore โดยใช้ uid จาก Firebase Auth เป็น document id
 /// - สถานะล็อกอินถูกจำไว้โดย Firebase Authentication เองโดยอัตโนมัติ จึงไม่ต้อง
 ///   ล็อกอินใหม่ทุกครั้งที่เปิดแอป
+/// - รูปโปรไฟล์เก็บเป็น Base64 string ลง Firestore โดยตรง (ไม่ใช้ Firebase Storage
+///   เพราะ Storage บังคับต้องอัปเกรดเป็นแผน Blaze/ผูกบัตรเครดิต ส่วนโปรเจกต์นี้
+///   อยู่บนแผน Spark ฟรี) รูปจะถูกย่อ/บีบอัดให้เล็กก่อนเก็บเสมอ เพื่อไม่ให้เกิน
+///   ขีดจำกัด 1 MiB ต่อเอกสารที่ Firestore กำหนดไว้
 class DataService extends ChangeNotifier {
-  // ⚠️ DEBUG/ทดสอบ UI ชั่วคราว: ตั้งเป็น true เพื่อ "ข้าม" การเขียนข้อมูลลง Firestore
-  // ทุกครั้ง ให้ทำงานกับ local state ในแอปอย่างเดียวแทน (กดบันทึกแล้วเห็นหน้าถัดไปทันที
-  // ไม่ต้องรอ/พึ่งการเชื่อมต่อฐานข้อมูลจริง) — เมื่อแก้ปัญหาเชื่อมต่อ Firestore
-  // (Security Rules / เครือข่าย) เสร็จแล้ว ให้เปลี่ยนกลับเป็น false เพื่อบันทึกข้อมูลจริง
-  static const bool offlineMode = true;
-
   final _uuid = const Uuid();
-  final _db = DBHelper.instance;
+  final DBHelper _db;
+
+  DataService({DBHelper? database}) : _db = database ?? DBHelper.instance;
+
+  Map<String, dynamic> _toStored(Map<String, dynamic> data) => data;
+  Map<String, dynamic> _toDisplay(Map<String, dynamic> data) => {
+    ...data, 'currency': data['currency'] ?? currentUser?.ledgerCurrency ?? 'THB',
+  };
+  Future<void> setCurrency(String currency) async {
+    if (!supportedCurrencies.contains(currency)) throw ArgumentError('Unsupported currency');
+    final user = currentUser;
+    if (user == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_defaultCurrencyKey, currency);
+      _defaultCurrency = currency;
+    } else {
+      await _db.update('users', {
+        'currency': currency, 'ledger_currency': user.ledgerCurrency,
+        'exchange_rate': 1, 'exchange_rate_date': null,
+      }, 'id = ?', [user.id]);
+      user.currency = currency;
+      user.exchangeRate = 1;
+      user.exchangeRateDate = null;
+    }
+    notifyListeners();
+  }
+  Iterable<TransactionModel> get _activeTransactions => _transactions.where(
+    (entry) => (entry.currency ?? currentUser?.ledgerCurrency ?? 'THB') == currentCurrency);
+
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ---------------- User session ----------------
   UserModel? currentUser;
   bool isReady = false;
 
-  // ---------------- Profile picture (เก็บ path ไฟล์ในเครื่องผ่าน SharedPreferences ต่อผู้ใช้) ----------------
+  // ---------------- Profile picture (แคชไฟล์ในเครื่องไว้แสดงผลเร็วในเซสชันนี้) ----------------
+  // แหล่งข้อมูลจริงคือ currentUser.avatarBase64 (มาจาก Firestore) ซึ่งตามบัญชีไป
+  // ทุกเครื่อง — avatarPath นี้เป็นแค่แคชไฟล์ในเครื่องเพื่อความเร็ว ไม่ใช่แหล่งข้อมูลหลัก
   String? avatarPath;
 
   // ---------------- ธีมของแอป (Light/Dark) ----------------
@@ -55,6 +86,15 @@ class DataService extends ChangeNotifier {
   // ที่ตั้งไว้ตอน setup (หน้า My wallet) เพื่อให้หน้าก่อนล็อกอิน (Login/Register/
   // Language Setup) เปลี่ยนภาษาได้เช่นกัน
   String _defaultLanguage = 'ไทย';
+  String _defaultCurrency = 'THB';
+  static const supportedCurrencies = ['THB', 'USD', 'EUR', 'JPY', 'GBP'];
+  String get currentCurrency => currentUser?.currency ?? _defaultCurrency;
+  String get currencySymbol => const {'THB':'฿','USD':'\$','EUR':'€','JPY':'¥','GBP':'£'}[currentCurrency] ?? currentCurrency;
+  String formatMoney(num amount) => NumberFormat.currency(
+    locale: currentLanguage == 'English' ? 'en_US' : 'th_TH',
+    name: currentCurrency, symbol: currencySymbol, decimalDigits: 2,
+  ).format(amount);
+
   String get currentLanguage => currentUser?.language ?? _defaultLanguage;
 
   /// แปลข้อความตาม key จาก AppStrings ตามภาษาปัจจุบันของแอป
@@ -63,7 +103,7 @@ class DataService extends ChangeNotifier {
   String t(String key) => AppStrings.of(currentLanguage)[key] ?? key;
 
   /// แปลชื่อหมวดหมู่ตามภาษาปัจจุบัน สำหรับหมวดหมู่เริ่มต้นของระบบ (c01-c17)
-  /// ซึ่งชื่อถูก seed ไว้เป็นภาษาไทยตายตัวใน SQLite ตั้งแต่แรก (ไม่ได้ผูกกับภาษา UI)
+  /// ซึ่งชื่อถูก seed ไว้เป็นภาษาไทยตายตัวใน Firestore ตั้งแต่แรก (ไม่ได้ผูกกับภาษา UI)
   /// จึงต้องแปลผ่าน key 'cat_<id>' แทนการอ่านชื่อจากฐานข้อมูลตรงๆ
   /// หมวดหมู่ที่ผู้ใช้สร้างเองเพิ่มเติม (id ไม่ตรงกับ c01-c17) จะใช้ชื่อเดิมตามที่ผู้ใช้ตั้งไว้
   String categoryName(CategoryModel category) {
@@ -72,7 +112,7 @@ class DataService extends ChangeNotifier {
   }
 
   /// เปลี่ยนภาษาทั้งแอปทันที ใช้ได้ทั้งก่อนและหลังล็อกอิน
-  /// - ถ้าล็อกอินอยู่: บันทึกลงโปรไฟล์ผู้ใช้ใน SQLite ผ่าน updateProfile
+  /// - ถ้าล็อกอินอยู่: บันทึกลงโปรไฟล์ผู้ใช้ใน Firestore ผ่าน updateProfile
   /// - ถ้ายังไม่ล็อกอิน: บันทึกเป็นค่า default ใน SharedPreferences
   Future<void> setLanguage(String language) async {
     if (currentUser != null) {
@@ -88,24 +128,25 @@ class DataService extends ChangeNotifier {
   // ---------------- การแจ้งเตือนเมื่อทำรายการสำเร็จ (Success Notes) ----------------
   bool successNotesEnabled = true;
 
-  // ---------------- Category (โหลดทั้งหมดครั้งเดียวตอนเริ่มแอป) ----------------
+  // ---------------- Category (โหลดจาก Firestore ครั้งเดียวตอนเริ่มแอป) ----------------
   final List<CategoryModel> categories = [];
 
   // ---------------- Transaction (เฉพาะของผู้ใช้ที่ล็อกอินอยู่) ----------------
   final List<TransactionModel> _transactions = [];
-  List<TransactionModel> get transactions => List.unmodifiable(_transactions.reversed);
+  List<TransactionModel> get transactions {
+    final sorted = [..._activeTransactions]..sort((a, b) => b.date.compareTo(a.date));
+    return List.unmodifiable(sorted);
+  }
 
   // ---------------- Goal Saving (เฉพาะของผู้ใช้ที่ล็อกอินอยู่) ----------------
   final List<GoalModel> _goals = [];
-  List<GoalModel> get goals => List.unmodifiable(_goals);
+  List<GoalModel> get goals => List.unmodifiable(_goals.where((g) => (g.currency ?? currentUser?.ledgerCurrency ?? 'THB') == currentCurrency));
 
   // =========================================================
   // เริ่มต้นระบบ: seed หมวดหมู่เริ่มต้น + กู้คืน session ที่ล็อกอินค้างไว้
   // เรียกครั้งเดียวจาก LoadingScreen ก่อนเข้าแอป
   // =========================================================
   Future<void> init() async {
-    // TODO: ยังไม่เชื่อม SQLite สำหรับหมวดหมู่ตอนนี้ - ใช้ defaultCategories ตรงๆ ในหน่วยความจำไปก่อน
-    // เมื่อพร้อมเชื่อม DB จริง ให้เปลี่ยนกลับไปเรียก _seedCategoriesIfEmpty() + _loadCategories() แทน
     categories
       ..clear()
       ..addAll(defaultCategories);
@@ -116,6 +157,7 @@ class DataService extends ChangeNotifier {
         : ThemeMode.light;
     successNotesEnabled = prefs.getBool(_successNotesKey) ?? true;
     _defaultLanguage = prefs.getString(_defaultLangKey) ?? 'ไทย';
+    _defaultCurrency = prefs.getString(_defaultCurrencyKey) ?? 'THB';
 
     // Firebase Authentication จำสถานะล็อกอินไว้ให้เองอยู่แล้ว (persistent session)
     // จึงเช็คแค่ว่ามีผู้ใช้ที่ล็อกอินค้างอยู่หรือไม่ แล้วโหลดโปรไฟล์ที่ตรงกันจาก Firestore
@@ -138,24 +180,12 @@ class DataService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// เพิ่มหมวดหมู่เริ่มต้นที่ยังไม่มีในฐานข้อมูล (เทียบทีละรายการด้วย id)
-  /// ต่างจากเดิมที่เช็คแค่ "ตารางว่างหรือไม่" ครั้งเดียว ซึ่งทำให้เครื่องที่เคย
-  /// ติดตั้งแอปไปแล้ว (มีหมวดหมู่เก่าอยู่บ้าง) ไม่เคยได้รับหมวดหมู่ใหม่ที่เพิ่มเข้ามาทีหลังเลย
-  Future<void> _seedCategoriesIfEmpty() async {
-    final rows = await _db.query('categories');
-    final existingIds = rows.map((r) => r['id'] as String).toSet();
-    for (final c in defaultCategories) {
-      if (!existingIds.contains(c.id)) {
-        await _db.insert('categories', c.toMap());
-      }
-    }
-  }
-
   Future<void> _loadCategories() async {
     final rows = await _db.query('categories');
     categories
       ..clear()
-      ..addAll(rows.map((r) => CategoryModel.fromMap(r)));
+      ..addAll(defaultCategories)
+      ..addAll(rows.map(CategoryModel.fromMap));
   }
 
   CategoryModel _categoryById(String id) {
@@ -167,25 +197,31 @@ class DataService extends ChangeNotifier {
 
   Future<void> _loadUserData() async {
     if (currentUser == null) return;
+    await _loadCategories();
     final txRows = await _db.query(
       'transactions',
       where: 'user_id = ?',
       whereArgs: [currentUser!.id],
       orderBy: 'date ASC',
     );
-    _transactions
-      ..clear()
-      ..addAll(txRows.map(
-          (r) => TransactionModel.fromMap(r, _categoryById(r['category_id'] as String))));
-
     final goalRows = await _db.query(
       'goals',
       where: 'user_id = ?',
       whereArgs: [currentUser!.id],
     );
+    _transactions
+      ..clear()
+      ..addAll(txRows.map(
+          (r) => TransactionModel.fromMap(_toDisplay(r), _categoryById(r['category_id'] as String))));
+
     _goals
       ..clear()
-      ..addAll(goalRows.map((r) => GoalModel.fromMap(r)));
+      ..addAll(goalRows.map((r) => GoalModel.fromMap(_toDisplay(r))));
+  }
+
+  Future<void> refreshData() async {
+    await _loadUserData();
+    notifyListeners();
   }
 
   // =========================================================
@@ -199,11 +235,15 @@ class DataService extends ChangeNotifier {
   /// บันทึกภาษา/สกุลเงินที่เลือกในหน้า My wallet ให้เป็นค่าเริ่มต้น
   /// (จะถูกนำไปใช้เป็นค่าตั้งต้นตอนสมัครสมาชิกครั้งแรก)
   Future<void> completeSetup({required String language, required String currency}) async {
+    if (currentUser != null) {
+      await updateProfile(language: language, currency: currency);
+    }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_setupDoneKey, true);
     await prefs.setString(_defaultLangKey, language);
     await prefs.setString(_defaultCurrencyKey, currency);
+    await prefs.setBool(_setupDoneKey, true);
     _defaultLanguage = language;
+    _defaultCurrency = currency;
     notifyListeners();
   }
 
@@ -250,6 +290,8 @@ class DataService extends ChangeNotifier {
       currentUser = user;
       _transactions.clear();
       _goals.clear();
+      avatarPath = null;
+      categories..clear()..addAll(defaultCategories);
 
       notifyListeners();
       return null; // สำเร็จ
@@ -371,6 +413,7 @@ class DataService extends ChangeNotifier {
   Future<String?> resetPassword(String email) async {
     try {
       final lang = currentLanguage == 'English' ? 'en' : 'th';
+      await FirebaseAuth.instance.setLanguageCode(lang);
       final actionCodeSettings = ActionCodeSettings(
         url:
             'https://budgetmate-app-a94da.web.app/reset_password.html?lang=$lang',
@@ -398,6 +441,8 @@ class DataService extends ChangeNotifier {
     } catch (_) {}
     await FirebaseAuth.instance.signOut();
     currentUser = null;
+    avatarPath = null;
+    categories..clear()..addAll(defaultCategories);
     _transactions.clear();
     _goals.clear();
     notifyListeners();
@@ -405,61 +450,79 @@ class DataService extends ChangeNotifier {
 
   Future<void> updateProfile({String? name, String? language, String? currency}) async {
     if (currentUser == null) return;
-    if (name != null) currentUser!.name = name;
-    if (language != null) currentUser!.language = language;
-    if (currency != null) currentUser!.currency = currency;
-    await _db.update('users', currentUser!.toMap(), 'id = ?', [currentUser!.id]);
+    final user = currentUser!;
+    if (currency != null && currency != user.currency) {
+      await setCurrency(currency);
+    }
+    final changes = <String, dynamic>{
+      if (name != null) 'name': name.trim(),
+      if (language != null) 'language': language,
+      
+    };
+    if (name != null && name.trim().isEmpty) throw ArgumentError(t('enter_username'));
+    await _db.update('users', changes, 'id = ?', [user.id]);
+    if (name != null) user.name = name.trim();
+    if (language != null) user.language = language;
+
     notifyListeners();
   }
 
-  /// เปิดตัวเลือกรูปภาพ (กล้อง/คลังภาพ) แล้วบันทึกไฟล์ลงเครื่องถาวร
-  /// เก็บ path ไว้ใน SharedPreferences แยกตาม user id (ไม่ผูกกับตาราง users ใน SQLite
-  /// เพื่อไม่ต้องแก้ schema เดิม) คืนค่า true หากเปลี่ยนรูปสำเร็จ
+  /// เปิดตัวเลือกรูปภาพ (กล้อง/คลังภาพ) แล้วเข้ารหัสเป็น Base64 บันทึกลง Firestore
+  /// โดยตรง (ฟิลด์ avatar_base64 ในเอกสาร users/{uid}) เพื่อให้รูปโปรไฟล์ "ตามไปทุก
+  /// เครื่อง" ที่ล็อกอินด้วยบัญชีเดียวกัน โดยไม่ต้องใช้ Firebase Storage (ซึ่งบังคับ
+  /// ต้องอัปเกรดเป็นแผน Blaze/ผูกบัตรเครดิต — โปรเจกต์นี้อยู่บนแผน Spark ฟรี)
+  ///
+  /// ย่อขนาดรูป (maxWidth 480px) และบีบอัดคุณภาพ (imageQuality 60) ตั้งแต่ตอนเลือก
+  /// รูป เพื่อให้ไฟล์เล็กพอที่จะเก็บเป็น Base64 ในเอกสาร Firestore เดียวได้โดยไม่เกิน
+  /// ขีดจำกัด 1 MiB ต่อเอกสาร (รูปโปรไฟล์วงกลมเล็กๆ ไม่จำเป็นต้องมีความละเอียดสูง)
+  ///
+  /// ยังคงแคชไฟล์ไว้ในเครื่องด้วย (avatarPath) เพื่อความเร็ว แต่แหล่งข้อมูลจริงคือ
+  /// avatarBase64 ใน Firestore
   Future<bool> pickAvatar({required bool fromCamera}) async {
     if (currentUser == null) return false;
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      maxWidth: 800,
-      imageQuality: 85,
+      maxWidth: 480,
+      imageQuality: 60,
     );
     if (picked == null) return false;
 
-    final dir = await getApplicationDocumentsDirectory();
-    final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
-    final savedPath = '${dir.path}/avatar_${currentUser!.id}.$ext';
+    final bytes = await picked.readAsBytes();
 
-    // ลบไฟล์รูปเก่า (ถ้ามี) ก่อนเขียนทับ กันไฟล์ค้างเปลืองพื้นที่
-    if (avatarPath != null) {
-      final old = File(avatarPath!);
-      if (await old.exists()) {
-        try {
-          await old.delete();
-        } catch (_) {}
-      }
+    const maxRawBytes = 700 * 1024;
+    if (bytes.length > maxRawBytes) {
+      throw StateError('รูปภาพใหญ่เกินไป กรุณาเลือกรูปที่เล็กลง');
     }
-
-    await File(picked.path).copy(savedPath);
-    avatarPath = savedPath;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('avatar_path_${currentUser!.id}', savedPath);
-
+    final user = currentUser!;
+    final encoded = base64Encode(bytes);
+    await _db.update('users', {'avatar_base64': encoded}, 'id = ?', [user.id]);
+    user.avatarBase64 = encoded;
+    avatarPath = null;
+    notifyListeners();
+    // Cache is optional; a local file error must not undo a successful cloud save.
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final savedPath = '${dir.path}/avatar_${user.id}.jpg';
+      await File(savedPath).writeAsBytes(bytes);
+      avatarPath = savedPath;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('avatar_path_${user.id}', savedPath);
+    } catch (e) {
+      debugPrint('Avatar cache unavailable: $e');
+    }
     notifyListeners();
     return true;
   }
 
   Future<void> removeAvatar() async {
-    if (currentUser == null || avatarPath == null) return;
-    final file = File(avatarPath!);
-    if (await file.exists()) {
-      try {
-        await file.delete();
-      } catch (_) {}
-    }
+    final user = currentUser;
+    if (user == null) return;
+    await _db.update('users', {'avatar_base64': null}, 'id = ?', [user.id]);
+    user.avatarBase64 = null;
     avatarPath = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('avatar_path_${currentUser!.id}');
+    await prefs.remove('avatar_path_${user.id}');
     notifyListeners();
   }
 
@@ -512,7 +575,16 @@ class DataService extends ChangeNotifier {
   // =========================================================
   // 1.3.1 ระบบฟังก์ชันบันทึกรายรับ-รายจ่าย
   // =========================================================
-  Future<void> addTransaction({
+  /// บันทึกรายการรายรับ/รายจ่ายใหม่ลง Firestore จริงเสมอ
+  ///
+  /// แก้บั๊กเดิม: มีแฟล็ก `offlineMode` ที่ทำให้โค้ดข้ามการเขียนลง Firestore
+  /// (`if (!offlineMode) await _db.insert(...)`) ผลคือรายการที่เพิ่มผ่านหน้า
+  /// Add Income/Expense ถูกเก็บไว้แค่ใน memory เท่านั้น พอปิดแอปแล้วเปิดใหม่
+  /// (หรือ logout/login ใหม่) รายการทั้งหมดจะหายไป ทั้งที่ผู้ใช้เห็นว่า "บันทึกสำเร็จ"
+  /// แล้วก็ตาม — ตอนนี้เขียนลง Firestore เสมอเหมือน editTransaction/deleteTransaction/
+  /// addGoal/transferToGoal ที่เขียนจริงอยู่แล้ว และคืนค่า error เป็น String แทนการ
+  /// ปล่อยให้ exception หลุดออกไป (เพื่อให้หน้าจอที่เรียกใช้แสดงข้อความ error ได้ตรงจุด)
+  Future<String?> addTransaction({
     required CategoryType type,
     required double amount,
     required CategoryModel category,
@@ -521,9 +593,11 @@ class DataService extends ChangeNotifier {
     String? description,
     String? receiptPath,
   }) async {
-    if (currentUser == null) return;
+    if (currentUser == null) return t('please_login_first');
+    if (!amount.isFinite || amount <= 0) return t('enter_valid_amount');
     final tx = TransactionModel(
       id: _uuid.v4(),
+      currency: currentCurrency,
       type: type,
       amount: amount,
       category: category,
@@ -532,11 +606,16 @@ class DataService extends ChangeNotifier {
       description: description,
       receiptPath: receiptPath,
     );
-    if (!offlineMode) {
-      await _db.insert('transactions', tx.toMap(currentUser!.id));
+    try {
+      await _db.insert('transactions', _toStored(tx.toMap(currentUser!.id)));
+    } catch (e) {
+      // ไม่เพิ่มเข้า _transactions ถ้าบันทึกลง Firestore ไม่สำเร็จ กัน state
+      // ในหน่วยความจำกับข้อมูลจริงใน Firestore ไม่ตรงกัน
+      return '${t('save_failed')}: $e';
     }
     _transactions.add(tx);
     notifyListeners();
+    return null;
   }
 
   Future<void> editTransaction(
@@ -551,6 +630,9 @@ class DataService extends ChangeNotifier {
     if (currentUser == null) return;
     final index = _transactions.indexWhere((t) => t.id == id);
     if (index == -1) return;
+    if (amount != null && (!amount.isFinite || amount <= 0)) {
+      throw ArgumentError(t('enter_valid_amount'));
+    }
     final updated = _transactions[index].copyWith(
       type: type,
       amount: amount,
@@ -559,14 +641,14 @@ class DataService extends ChangeNotifier {
       note: note,
       description: description,
     );
+    await _db.update('transactions', _toStored(updated.toMap(currentUser!.id)), 'id = ?', [id]);
     _transactions[index] = updated;
-    await _db.update('transactions', updated.toMap(currentUser!.id), 'id = ?', [id]);
     notifyListeners();
   }
 
   Future<void> deleteTransaction(String id) async {
-    _transactions.removeWhere((t) => t.id == id);
     await _db.delete('transactions', 'id = ?', [id]);
+    _transactions.removeWhere((t) => t.id == id);
     notifyListeners();
   }
 
@@ -596,8 +678,13 @@ class DataService extends ChangeNotifier {
     String? note,
   }) async {
     if (currentUser == null) return t('please_login_first');
+    if (!targetAmount.isFinite || targetAmount <= 0 ||
+        !savedAmount.isFinite || savedAmount < 0 || savedAmount > targetAmount) {
+      return t('enter_valid_amount');
+    }
     final goal = GoalModel(
       id: _uuid.v4(),
+      currency: currentCurrency,
       name: name,
       targetAmount: targetAmount,
       savedAmount: savedAmount,
@@ -605,9 +692,10 @@ class DataService extends ChangeNotifier {
       targetDate: targetDate,
       icon: icon,
       note: note,
+      status: savedAmount >= targetAmount ? GoalStatus.completed : GoalStatus.inProgress,
     );
     try {
-      await _db.insert('goals', goal.toMap(currentUser!.id));
+      await _db.insert('goals', _toStored(goal.toMap(currentUser!.id)));
     } catch (e) {
       return '${t('save_failed')}: $e';
     }
@@ -620,14 +708,16 @@ class DataService extends ChangeNotifier {
   /// หมายเหตุ: เมธอดนี้ไม่กระทบ Ledger Balance (ไม่สร้างรายจ่าย) — เก็บไว้เพื่อความเข้ากันได้ย้อนหลัง
   /// สำหรับการ "โอนเงินจริง" ที่ต้องหักยอดคงเหลือด้วย ให้ใช้ [transferToGoal] แทน
   Future<void> contributeToGoal(String goalId, double amount) async {
-    final goal = _goals.firstWhere((g) => g.id == goalId);
-    goal.savedAmount = (goal.savedAmount + amount).clamp(0, goal.targetAmount);
-    if (goal.savedAmount >= goal.targetAmount) {
-      goal.status = GoalStatus.completed;
-    }
-    if (currentUser != null) {
-      await _db.update('goals', goal.toMap(currentUser!.id), 'id = ?', [goal.id]);
-    }
+    if (currentUser == null) throw StateError(t('please_login_first'));
+    if (!amount.isFinite || amount <= 0) throw ArgumentError(t('enter_valid_amount'));
+    final index = _goals.indexWhere((g) => g.id == goalId);
+    if (index == -1) throw StateError(t('goal_not_found'));
+    final goal = _goals[index];
+    final saved = (goal.savedAmount + amount).clamp(0, goal.targetAmount).toDouble();
+    final updated = goal.copyWith(savedAmount: saved,
+      status: saved >= goal.targetAmount ? GoalStatus.completed : GoalStatus.inProgress);
+    await _db.update('goals', _toStored(updated.toMap(currentUser!.id)), 'id = ?', [goal.id]);
+    _goals[index] = updated;
     notifyListeners();
   }
 
@@ -640,7 +730,7 @@ class DataService extends ChangeNotifier {
         (c) => c.id == _goalSavingCategoryId || c.name == 'เงินออม');
     if (existing.isNotEmpty) return existing.first;
 
-    final category = const CategoryModel(
+    const category = CategoryModel(
       id: _goalSavingCategoryId,
       name: 'เงินออม',
       type: CategoryType.expense,
@@ -659,27 +749,28 @@ class DataService extends ChangeNotifier {
   /// คืนค่า null หากโอนสำเร็จ หรือข้อความ error หากทำไม่ได้ (เช่น ยอดคงเหลือไม่พอ)
   Future<String?> transferToGoal(String goalId, double amount, {String? note}) async {
     if (currentUser == null) return t('please_login_first');
-    if (amount <= 0) return t('enter_valid_amount');
+    if (!amount.isFinite || amount <= 0) return t('enter_valid_amount');
 
     final goalIndex = _goals.indexWhere((g) => g.id == goalId);
     if (goalIndex == -1) return t('goal_not_found');
     final goal = _goals[goalIndex];
 
     if (amount > balance) {
-      return '${t('insufficient_ledger_prefix')} ฿${balance.toStringAsFixed(2)})';
+      return '${t('insufficient_ledger_prefix')} ${formatMoney(balance)})';
     }
 
     // แก้บั๊ก: เดิมเมธอดนี้ไม่ตรวจว่าจำนวนที่โอนเกินยอดที่ยังขาดอยู่ของเป้าหมายหรือไม่
     // (ต่างจาก contributeToGoal ที่ clamp ค่า saved_amount ไว้) ทำให้ saved_amount
     // สามารถเกิน target_amount ได้แบบเงียบๆ เมื่อผู้ใช้กรอกจำนวนเกินที่ต้องการอีก
     final remaining = goal.targetAmount - goal.savedAmount;
-    if (remaining > 0 && amount > remaining) {
-      return '${t('amount_exceeds_prefix')} ฿${remaining.toStringAsFixed(2)})';
+    if (amount > remaining) {
+      return '${t('amount_exceeds_prefix')} ${formatMoney(remaining)})';
     }
 
     final category = await _ensureGoalSavingCategory();
     final tx = TransactionModel(
       id: _uuid.v4(),
+      currency: currentCurrency,
       type: CategoryType.expense,
       amount: amount,
       category: category,
@@ -688,28 +779,14 @@ class DataService extends ChangeNotifier {
       description: 'goal_transfer:${goal.id}',
     );
 
-    final wasCompleted = goal.status == GoalStatus.completed;
     try {
-      // 1) บันทึกรายจ่ายอัตโนมัติ (หักออกจาก Ledger Balance ทันทีเพราะ balance คำนวณจาก transactions)
-      await _db.insert('transactions', tx.toMap(currentUser!.id));
+      final updated = await _db.transferToGoal(
+        goal.id, amount, _toStored(tx.toMap(currentUser!.id)),
+      );
+      _goals[goalIndex] = GoalModel.fromMap(_toDisplay(updated));
       _transactions.add(tx);
-
-      // 2) เพิ่มยอดออมสะสมของเป้าหมาย
-      goal.savedAmount += amount;
-      if (goal.savedAmount >= goal.targetAmount) {
-        goal.status = GoalStatus.completed;
-      }
-      await _db.update('goals', goal.toMap(currentUser!.id), 'id = ?', [goal.id]);
     } catch (e) {
-      // ชดเชยย้อนกลับ (compensating rollback) เนื่องจาก DBHelper ปัจจุบันไม่มี atomic transaction()
-      // TODO: ถ้าต้องการความปลอดภัยสูงสุด ควรเพิ่มเมธอด runInTransaction ใน DBHelper
-      // แล้วห่อ insert(transactions) + update(goals) ไว้ในทรานแซกชันเดียวของ SQLite จริง ๆ
-      _transactions.removeWhere((t) => t.id == tx.id);
-      await _db.delete('transactions', 'id = ?', [tx.id]);
-      goal.savedAmount -= amount;
-      goal.status = wasCompleted ? GoalStatus.completed : GoalStatus.inProgress;
-      notifyListeners();
-      return t('transfer_failed');
+      return '${t('transfer_failed')}: $e';
     }
 
     notifyListeners();
@@ -717,8 +794,8 @@ class DataService extends ChangeNotifier {
   }
 
   Future<void> deleteGoal(String id) async {
-    _goals.removeWhere((g) => g.id == id);
     await _db.delete('goals', 'id = ?', [id]);
+    _goals.removeWhere((g) => g.id == id);
     notifyListeners();
   }
 
@@ -728,18 +805,18 @@ class DataService extends ChangeNotifier {
   // =========================================================
   // 1.3.3 การแสดงผลข้อมูลทางการเงิน (คำนวณจากข้อมูลที่โหลดไว้ในหน่วยความจำ)
   // =========================================================
-  double get totalIncome => _transactions
+  double get totalIncome => _activeTransactions
       .where((t) => t.type == CategoryType.income)
       .fold(0.0, (sum, t) => sum + t.amount);
 
-  double get totalExpense => _transactions
+  double get totalExpense => _activeTransactions
       .where((t) => t.type == CategoryType.expense)
       .fold(0.0, (sum, t) => sum + t.amount);
 
   double get balance => totalIncome - totalExpense;
 
   double monthlyTotal(CategoryType type, DateTime month) {
-    return _transactions
+    return _activeTransactions
         .where((t) =>
             t.type == type && t.date.year == month.year && t.date.month == month.month)
         .fold(0.0, (sum, t) => sum + t.amount);
@@ -747,7 +824,7 @@ class DataService extends ChangeNotifier {
 
   /// ยอดรวมของวันใดวันหนึ่ง (ใช้กับกราฟที่เลือกดูแบบ "วัน")
   double dailyTotal(CategoryType type, DateTime day) {
-    return _transactions
+    return _activeTransactions
         .where((t) =>
             t.type == type &&
             t.date.year == day.year &&
@@ -758,7 +835,7 @@ class DataService extends ChangeNotifier {
 
   /// ยอดรวมของปีใดปีหนึ่ง (ใช้กับกราฟที่เลือกดูแบบ "ปี")
   double yearlyTotal(CategoryType type, int year) {
-    return _transactions
+    return _activeTransactions
         .where((t) => t.type == type && t.date.year == year)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
@@ -822,7 +899,7 @@ class DataService extends ChangeNotifier {
   /// สัดส่วนค่าใช้จ่ายแยกตามหมวดหมู่ สำหรับ Pie Chart หน้า Income/Expense
   Map<CategoryModel, double> expenseByCategory({DateTime? month}) {
     final Map<CategoryModel, double> map = {};
-    for (final t in _transactions.where((t) => t.type == CategoryType.expense)) {
+    for (final t in _activeTransactions.where((t) => t.type == CategoryType.expense)) {
       if (month != null &&
           !(t.date.year == month.year && t.date.month == month.month)) {
         continue;

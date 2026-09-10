@@ -1,3 +1,5 @@
+import '../widgets/pastel_artwork.dart';
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -264,7 +266,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                               color: Colors.white.withOpacity(0.7),
                               borderRadius: BorderRadius.circular(AppRadius.pill),
                             ),
-                            child: Text('฿${mostSpent.value.toStringAsFixed(0)}',
+                            child: Text(service.formatMoney(mostSpent.value),
                                 style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                           ),
                         ],
@@ -307,7 +309,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                                   color: tint,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Icon(g.icon, color: tintIcon, size: 18),
+                                child: GoalArtwork(g.icon, color: tintIcon, size: 18),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
@@ -330,7 +332,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                              '฿${g.savedAmount.toStringAsFixed(0)} / ฿${g.targetAmount.toStringAsFixed(0)}',
+                              '${service.formatMoney(g.savedAmount)} / ${service.formatMoney(g.targetAmount)}',
                               style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                           if (g.isNearTarget)
                             Padding(
@@ -363,7 +365,7 @@ class _StatisticScreenState extends State<StatisticScreen> {
   }
 
   Future<void> _onRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await refreshAppData(context);
     if (mounted) setState(() {});
   }
 

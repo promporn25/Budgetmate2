@@ -1,3 +1,4 @@
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -514,7 +515,7 @@ class _IncomeExpenseOverviewState
   }
 
   Future<void> _onRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await refreshAppData(context);
     if (mounted) setState(() {});
   }
 
@@ -821,8 +822,7 @@ class _IncomeExpenseOverviewState
           // ======================================================
 
           Text(
-            '${isIncome ? '+' : '-'}฿'
-            '${t.amount.toStringAsFixed(0)}',
+            '${isIncome ? '+' : '-'}${context.watch<DataService>().formatMoney(t.amount)}',
 
             style: TextStyle(
               fontWeight: FontWeight.bold,

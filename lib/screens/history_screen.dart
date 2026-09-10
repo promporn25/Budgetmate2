@@ -1,3 +1,4 @@
+import '../widgets/data_action.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -81,7 +82,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _onRefresh() async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await refreshAppData(context);
     if (mounted) setState(() {});
   }
 
@@ -118,7 +119,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
         padding: const EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_outline_rounded, color: AppColors.danger),
       ),
-      onDismissed: (_) async => service.deleteTransaction(t.id),
+      confirmDismiss: (_) async {
+                    try {
+                      await service.deleteTransaction(t.id);
+                      return true;
+                    } catch (e) {
+                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${service.t('save_failed')}: $e')));
+                      return false;
+                    }
+                  },
       child: AppCard(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: ListTile(
@@ -134,7 +144,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               '${DateFormat('d MMM yyyy').format(t.date)}${t.note != null ? ' • ${t.note}' : ''}',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           trailing: Text(
-            '${isIncome ? '+' : '-'}฿${t.amount.toStringAsFixed(2)}',
+            '${isIncome ? '+' : '-'}${service.formatMoney(t.amount)}',
             style: TextStyle(
               color: isIncome ? AppColors.income : AppColors.expense,
               fontWeight: FontWeight.bold,

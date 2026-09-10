@@ -7,6 +7,7 @@ import '../screens/wallet_screen.dart';
 import '../screens/add_income_expense_screen.dart';
 import '../screens/statistic_screen.dart';
 import '../screens/account_setting_screen.dart';
+import 'pastel_artwork.dart';
 
 /// แถบเมนูนำทางด้านล่าง — v2 "Cute Fintech"
 /// โครงสร้าง/ลำดับ/พฤติกรรมการนำทางเหมือนเดิมทุกประการ (5 แท็บ, index เดิม)
@@ -51,13 +52,11 @@ class BottomNav extends StatelessWidget {
     final service = context.watch<DataService>();
 
     final items = <_NavItemData>[
-      _NavItemData(Icons.home_rounded, Icons.home_outlined, service.t('nav_home')),
-      _NavItemData(Icons.account_balance_wallet_rounded, Icons.account_balance_wallet_outlined,
-          service.t('nav_wallet')),
-      _NavItemData(Icons.add_circle_rounded, Icons.add_circle_outline_rounded, service.t('nav_add'),
-          big: true),
-      _NavItemData(Icons.show_chart_rounded, Icons.show_chart, service.t('nav_stat')),
-      _NavItemData(Icons.menu_rounded, Icons.menu_rounded, service.t('nav_menu')),
+      _NavItemData(3, service.t('nav_home')),
+      _NavItemData(14, service.t('nav_wallet')),
+      _NavItemData(5, service.t('nav_add'), big: true),
+      _NavItemData(20, service.t('nav_stat')),
+      _NavItemData(13, service.t('nav_menu')),
     ];
 
     return Container(
@@ -75,7 +74,7 @@ class BottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 64,
+          height: 76,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(items.length, (i) {
@@ -91,27 +90,54 @@ class BottomNav extends StatelessWidget {
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOut,
-                        padding: EdgeInsets.symmetric(
-                            horizontal: item.big ? 10 : 14, vertical: 6),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: selected ? AppColors.accentBg : Colors.transparent,
+                          color: selected
+                              ? AppColors.accentBg
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
-                        child: Icon(
-                          selected ? item.filled : item.outline,
-                          size: item.big ? 30 : 22,
-                          color: selected ? AppColors.ink : AppColors.textMuted,
+                        child: SizedBox(
+                          width: 38,
+                          height: 38,
+                          child: Stack(clipBehavior: Clip.none, children: [
+                            ExcludeSemantics(
+                                child: PastelArtwork(
+                                    categoryNumber: item.categoryNumber,
+                                    size: 38)),
+                            if (item.big)
+                              Positioned(
+                                  right: -3,
+                                  bottom: -1,
+                                  child: Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                        color: AppColors.accentDeep,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                            color: AppColors.card, width: 1.5)),
+                                    child: const Icon(Icons.add_rounded,
+                                        size: 14, color: Colors.white),
+                                  )),
+                          ]),
                         ),
                       ),
                       const SizedBox(height: 3),
                       AnimatedDefaultTextStyle(
                         duration: const Duration(milliseconds: 200),
                         style: TextStyle(
+                          fontFamily: appFontFamily,
                           fontSize: 10.5,
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                          color: selected ? AppColors.ink : AppColors.textMuted,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected
+                              ? AppColors.ink
+                              : AppColors.textSecondary,
                         ),
-                        child: Text(item.label, overflow: TextOverflow.ellipsis, maxLines: 1),
+                        child: Text(item.label,
+                            overflow: TextOverflow.ellipsis, maxLines: 1),
                       ),
                     ],
                   ),
@@ -126,9 +152,8 @@ class BottomNav extends StatelessWidget {
 }
 
 class _NavItemData {
-  final IconData filled;
-  final IconData outline;
+  final int categoryNumber;
   final String label;
   final bool big;
-  const _NavItemData(this.filled, this.outline, this.label, {this.big = false});
+  const _NavItemData(this.categoryNumber, this.label, {this.big = false});
 }

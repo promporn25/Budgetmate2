@@ -1,3 +1,5 @@
+import '../widgets/data_action.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -220,8 +222,15 @@ class AccountSettingScreen extends StatelessWidget {
                 saving = true;
                 errorText = null;
               });
-              await service.updateProfile(name: name);
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              try {
+                await service.updateProfile(name: name);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              } catch (e) {
+                if (dialogContext.mounted) setState(() {
+                  saving = false;
+                  errorText = '${service.t('save_failed')}: $e';
+                });
+              }
             }
 
             return Dialog(
@@ -375,7 +384,7 @@ class AccountSettingScreen extends StatelessWidget {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppRadius.md),
                         onTap: () async {
-                          await service.setLanguage(lang);
+                          await runDataAction(context, () async { await service.setLanguage(lang); });
                           if (dialogContext.mounted) Navigator.pop(dialogContext);
                         },
                         child: Container(
@@ -596,14 +605,34 @@ class _ProfileCard extends StatelessWidget {
 }
 
 /// รูปโปรไฟล์ที่แตะเพื่อเปลี่ยนได้ (ถ่ายรูปใหม่ / เลือกจากคลังภาพ / ลบรูป)
+///
+/// อัปเดต: ลอง decode รูปจาก `service.currentUser.avatarBase64` (Base64 string
+/// ที่เก็บอยู่ใน Firestore) ก่อนเป็นอันดับแรก เพราะเป็นแหล่งข้อมูลจริงที่ผูกกับบัญชี
+/// และตามไปทุกเครื่องที่ล็อกอิน ถ้ายังไม่มีจะ fallback ไปที่ไฟล์แคชในเครื่อง
+/// (avatarPath) แล้วค่อย fallback สุดท้ายเป็นไอคอนคน default — เดิมโค้ดจุดนี้ดูแค่
+/// avatarPath (ไฟล์ในเครื่อง) อย่างเดียว ทำให้เปลี่ยนมือถือเครื่องใหม่แล้วเห็นแต่
+/// ไอคอน default เสมอแม้จะเคยตั้งรูปโปรไฟล์ไว้แล้วก็ตาม
 class _AvatarPicker extends StatelessWidget {
   final DataService service;
   const _AvatarPicker({required this.service});
 
   @override
   Widget build(BuildContext context) {
+    final avatarBase64 = service.currentUser?.avatarBase64;
     final path = service.avatarPath;
-    final hasImage = path != null && File(path).existsSync();
+    final hasLocalImage = path != null && File(path).existsSync();
+
+    ImageProvider? avatarImage;
+    if (avatarBase64 != null && avatarBase64.isNotEmpty) {
+      try {
+        avatarImage = MemoryImage(base64Decode(avatarBase64));
+      } catch (_) {
+        avatarImage = null;
+      }
+    }
+    if (avatarImage == null && hasLocalImage) {
+      avatarImage = FileImage(File(path));
+    }
 
     return GestureDetector(
       onTap: () => _showPickerSheet(context),
@@ -624,10 +653,10 @@ class _AvatarPicker extends StatelessWidget {
               child: CircleAvatar(
                 radius: 26,
                 backgroundColor: AppColors.accentBg,
-                backgroundImage: hasImage ? FileImage(File(path)) : null,
-                child: hasImage
-                    ? null
-                    : Icon(Icons.person, size: 26, color: AppColors.ink),
+                backgroundImage: avatarImage,
+                child: avatarImage == null
+                    ? Icon(Icons.person, size: 26, color: AppColors.ink)
+                    : null,
               ),
             ),
           ),
@@ -657,7 +686,7 @@ class _AvatarPicker extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
       builder: (sheetContext) {
-        final hasImage = service.avatarPath != null;
+        final hasImage = service.avatarPath != null || service.currentUser?.avatarBase64 != null;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -682,7 +711,7 @@ class _AvatarPicker extends StatelessWidget {
                   title: Text(service.t('take_photo'), style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
                     Navigator.pop(sheetContext);
-                    await service.pickAvatar(fromCamera: true);
+                    await runDataAction(context, () async { await service.pickAvatar(fromCamera: true); });
                   },
                 ),
                 ListTile(
@@ -694,7 +723,7 @@ class _AvatarPicker extends StatelessWidget {
                   title: Text(service.t('choose_from_gallery'), style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
                     Navigator.pop(sheetContext);
-                    await service.pickAvatar(fromCamera: false);
+                    await runDataAction(context, () async { await service.pickAvatar(fromCamera: false); });
                   },
                 ),
                 if (hasImage)
@@ -707,7 +736,7 @@ class _AvatarPicker extends StatelessWidget {
                     title: Text(service.t('remove_photo'), style: TextStyle(color: AppColors.danger)),
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      await service.removeAvatar();
+                      await runDataAction(context, () async { await service.removeAvatar(); });
                     },
                   ),
               ],

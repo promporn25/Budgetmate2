@@ -4,6 +4,7 @@ enum GoalStatus { inProgress, completed }
 
 /// เอนทิตี้ Goal_Saving ตามพจนานุกรมข้อมูลในเอกสารบทที่ 3
 class GoalModel {
+  final String? currency;
   final String id; // goal_id
   final String name; // goal_name
   final double targetAmount; // target_amount
@@ -16,6 +17,7 @@ class GoalModel {
 
   GoalModel({
     required this.id,
+    this.currency,
     required this.name,
     required this.targetAmount,
     required this.savedAmount,
@@ -44,6 +46,7 @@ class GoalModel {
   }) {
     return GoalModel(
       id: id,
+      currency: currency,
       name: name ?? this.name,
       targetAmount: targetAmount ?? this.targetAmount,
       savedAmount: savedAmount ?? this.savedAmount,
@@ -58,6 +61,7 @@ class GoalModel {
   Map<String, dynamic> toMap(String userId) {
     return {
       'id': id,
+      'currency': currency,
       'user_id': userId,
       'name': name,
       'target_amount': targetAmount,
@@ -73,6 +77,7 @@ class GoalModel {
   factory GoalModel.fromMap(Map<String, dynamic> map) {
     return GoalModel(
       id: map['id'] as String,
+      currency: map['currency'] as String?,
       name: map['name'] as String,
       targetAmount: (map['target_amount'] as num).toDouble(),
       savedAmount: (map['saved_amount'] as num).toDouble(),

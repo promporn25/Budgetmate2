@@ -1,3 +1,5 @@
+import 'receipt_scan_screen.dart';
+import '../widgets/pastel_artwork.dart';
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +33,13 @@ const List<Color> _categoryTintIcon = [
 
 /// หน้า Add Income/Expense (3.4.10) — ปรับดีไซน์ให้ดูนุ่มนวล มีมิติ และน่ารักขึ้น
 /// (โทนพาสเทลเดิม, ฟังก์ชันเดิมทั้งหมดไม่เปลี่ยนแปลง)
+///
+/// อัปเดต: `_save()` ปรับให้รองรับ `DataService.addTransaction()` เวอร์ชันใหม่
+/// ที่คืนค่า `Future<String?>` (null = บันทึกสำเร็จ, มีข้อความ = บันทึกไม่สำเร็จ)
+/// แทนที่จะปล่อยให้ exception หลุดออกมาอย่างเดียวเหมือนเดิม — ถ้ารายการไหนบันทึก
+/// ไม่สำเร็จระหว่างลูป จะหยุดทันที ลบเฉพาะรายการที่บันทึกสำเร็จไปแล้วออกจากลิสต์
+/// "รอบันทึก" (กันกดซ้ำซ้อน) ส่วนรายการที่เหลือ (รวมตัวที่ error) จะยังอยู่ให้กด
+/// บันทึกใหม่ได้อีกครั้งโดยไม่ต้องกรอกซ้ำ
 class AddIncomeExpenseScreen extends StatefulWidget {
   const AddIncomeExpenseScreen({super.key});
 
@@ -230,6 +239,15 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
     );
   }
 
+  /// บันทึกทุกรายการใน "ลิสต์รอบันทึก" (_tempTransactions) ลง Firestore จริงทีละรายการ
+  /// ผ่าน service.addTransaction() ซึ่งตอนนี้คืนค่า Future<String?>:
+  ///   - null    = บันทึกรายการนั้นสำเร็จ
+  ///   - String  = บันทึกไม่สำเร็จ (ข้อความ error ที่จะโชว์ให้ผู้ใช้เห็น)
+  ///
+  /// ถ้าเจอรายการที่บันทึกไม่สำเร็จระหว่างลูป จะหยุดทันที (ไม่ยิงรายการถัดไปต่อ)
+  /// แล้วเอาเฉพาะรายการที่ "บันทึกสำเร็จไปแล้วก่อนหน้า" ออกจากลิสต์รอบันทึก
+  /// (กันผู้ใช้กดบันทึกซ้ำแล้วรายการเดิมถูกเพิ่มซ้ำสอง) ส่วนรายการที่เหลือ (รวมตัว
+  /// ที่ error) จะยังค้างอยู่ในลิสต์ให้กดปุ่มบันทึกใหม่ได้อีกครั้งโดยไม่ต้องกรอกซ้ำ
   Future<void> _save() async {
     if (_saving) return;
     final service = context.read<DataService>();
@@ -242,14 +260,28 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
     setState(() => _saving = true);
 
     try {
+      final savedIds = <String>{};
       for (final tx in _tempTransactions) {
-        await service.addTransaction(
+        final error = await service.addTransaction(
           type: tx['category'].type,
           amount: tx['amount'],
           category: tx['category'],
           date: DateTime.now(),
           note: tx['note'],
         );
+
+        if (error != null) {
+          if (mounted) {
+            setState(() {
+              _tempTransactions =
+                  _tempTransactions.where((t) => !savedIds.contains(t['id'])).toList();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+          }
+          return;
+        }
+
+        savedIds.add(tx['id'] as String);
       }
 
       if (!mounted) return;
@@ -321,6 +353,62 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentBg,
+                        foregroundColor: AppColors.ink,
+                        surfaceTintColor: Colors.transparent,
+                        elevation: 3,
+                        shadowColor: AppColors.shadow,
+                        minimumSize: const Size.fromHeight(76),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        side: BorderSide(color: AppColors.accent, width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      onPressed: _saving ? null : () async {
+                        _closeNumpad();
+                        final saved = await Navigator.push<bool>(context,
+                          MaterialPageRoute(builder: (_) => const ReceiptScanScreen()));
+                        if (saved == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(service.currentLanguage == 'English' ? 'Receipt expense saved' : 'บันทึกรายจ่ายจากใบเสร็จแล้ว')));
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Icon(Icons.document_scanner_rounded, size: 28, color: AppColors.ink),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(service.currentLanguage == 'English' ? 'Add from receipt' : 'เพิ่มจากใบเสร็จ',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 4),
+                                Text(service.currentLanguage == 'English' ? 'Take a photo or choose an image' : 'ถ่ายรูปหรือเลือกรูป เพื่อช่วยกรอกยอดเงิน',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.arrow_forward_rounded, size: 23, color: AppColors.ink),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 Expanded(
                   child: SingleChildScrollView(
@@ -349,7 +437,7 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                                     style: TextStyle(
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w700,
-                                        color: AppColors.accentDeep)),
+                                        color: AppColors.ink)),
                               ),
                             ],
                           ),
@@ -646,7 +734,7 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
             Text(label, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
             const SizedBox(height: 2),
             Text(
-              '${_formatAmount(value)}฿',
+              context.watch<DataService>().formatMoney(value),
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: color),
               overflow: TextOverflow.ellipsis,
             ),
@@ -764,7 +852,7 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                           ],
                         ),
                       ),
-                      Text('${isIncome ? '+' : '-'}${_formatAmount(tx['amount'] as double)}฿',
+                      Text('${isIncome ? '+' : '-'}${context.watch<DataService>().formatMoney(tx['amount'] as double)}',
                           style: TextStyle(fontWeight: FontWeight.bold, color: accent, fontSize: 13.5)),
                       const SizedBox(width: 8),
                       GestureDetector(
@@ -862,11 +950,11 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                         const SizedBox(width: 3),
                       ],
                       Text(
-                        '฿',
+                        context.watch<DataService>().currencySymbol,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentDeep,
+                          color: AppColors.ink,
                         ),
                       ),
                     ],
@@ -955,11 +1043,11 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
         padding: EdgeInsets.zero,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
-          mainAxisSpacing: 14,
+          mainAxisSpacing: 8,
           crossAxisSpacing: 4,
-          childAspectRatio: 0.82,
+          mainAxisExtent: _showNumpad ? 72 : 96,
         ),
         itemCount: tiles.length,
         itemBuilder: (context, i) => tiles[i],
@@ -970,6 +1058,8 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
   Widget _categoryTile(CategoryModel c, DataService service, int index) {
     final selected = _selectedCategory?.id == c.id;
     final tintIcon = _categoryTintIcon[index % _categoryTintIcon.length];
+    final pastel = [AppColors.accentBg, AppColors.accentAltBg,
+      const Color(0xFFEAE5FA), const Color(0xFFE1F2EC)][index % 4];
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -985,27 +1075,30 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
         children: [
           // เพิ่มเอฟเฟกต์ "เด้งเล็กน้อย" ตอนถูกเลือก ให้ดูมีชีวิตชีวาน่ารักขึ้น
           AnimatedScale(
-            scale: selected ? 1.08 : 1.0,
+            scale: selected ? 1.04 : 1.0,
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutBack,
             child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: Duration.zero,
             curve: Curves.easeOut,
-            width: 60,
-            height: 60,
+            width: _showNumpad ? 44 : 60,
+            height: _showNumpad ? 44 : 60,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              color: Colors.white,
+              borderRadius: BorderRadius.circular(_showNumpad ? 15 : 20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [AppColors.surfaceAlt, Color.lerp(AppColors.card, pastel, 0.7)!],
+              ),
               border: Border.all(
-                color: selected ? AppColors.accentDeep : AppColors.border,
-                width: selected ? 2.2 : 1,
+                color: selected ? AppColors.accentPink : Color.lerp(AppColors.border, pastel, 0.6)!,
+                width: selected ? 2 : 1.3,
               ),
               boxShadow: [
                 BoxShadow(
                   color: selected
-                      ? AppColors.accentDeep.withOpacity(0.32)
-                      : Colors.black.withOpacity(0.08),
-                  blurRadius: selected ? 12 : 6,
+                      ? AppColors.accentPink.withOpacity(0.23)
+                      : AppColors.accentDeep.withOpacity(0.09),
+                  blurRadius: selected ? 12 : 8,
                   offset: const Offset(0, 3),
                 ),
               ],
@@ -1016,14 +1109,22 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
             // (คอนเทนเนอร์ 60x60 ด้านนอก) ขยายขนาดตามไปด้วย
             child: Center(
               child: SizedBox(
-                width: 52,
-                height: 52,
-                child: CategoryIcon(
+                width: _showNumpad ? 38 : 52,
+                height: _showNumpad ? 38 : 52,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.matrix([
+                    0.86, 0.08, 0.06, 0, 5,
+                    0.04, 0.91, 0.05, 0, 3,
+                    0.04, 0.09, 0.87, 0, 7,
+                    0, 0, 0, 1, 0,
+                  ]),
+                  child: CategoryIcon(
                   category: c,
                   color: selected ? AppColors.accentDeep : tintIcon,
-                  size: 52,
+                  size: _showNumpad ? 38 : 52,
                   fill: true,
-                  zoom: 1.35,
+                  zoom: 1.12,
+                  ),
                 ),
               ),
             ),
@@ -1035,7 +1136,7 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              color: selected ? AppColors.ink : AppColors.textSecondary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1053,17 +1154,17 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: _showNumpad ? 44 : 60,
+            height: _showNumpad ? 44 : 60,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(_showNumpad ? 15 : 20),
+              color: AppColors.accentAltBg,
               border: Border.all(
                 color: AppColors.border,
                 width: 1.4,
               ),
             ),
-            child: Icon(Icons.add_rounded, color: AppColors.textSecondary, size: 26),
+            child: Icon(Icons.add_rounded, color: AppColors.accentPink, size: 26),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1133,7 +1234,7 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                               end: Alignment.bottomRight,
                             ),
                           ),
-                          child: Icon(selectedIcon, color: AppColors.ink, size: 22),
+                          child: GoalArtwork(selectedIcon, size: 38),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1186,9 +1287,13 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                                 borderRadius: BorderRadius.circular(AppRadius.md),
                                 gradient: selected
                                     ? LinearGradient(
-                                        colors: [AppColors.accentDeep, AppColors.accentDeep.withOpacity(0.85)])
+                                        colors: [AppColors.accentBg, AppColors.accentAltBg])
                                     : null,
                                 color: selected ? null : AppColors.surface,
+                                border: Border.all(
+                                  color: selected ? AppColors.accentPink : AppColors.border,
+                                  width: selected ? 2 : 1,
+                                ),
                                 boxShadow: selected
                                     ? [
                                         BoxShadow(
@@ -1199,8 +1304,11 @@ class _AddIncomeExpenseScreenState extends State<AddIncomeExpenseScreen> {
                                       ]
                                     : [],
                               ),
-                              child: Icon(icon,
-                                  size: 20, color: selected ? Colors.white : AppColors.textSecondary),
+                              padding: const EdgeInsets.all(5),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => GoalArtwork(
+                                  icon, size: constraints.biggest.shortestSide),
+                              ),
                             ),
                           );
                         },
