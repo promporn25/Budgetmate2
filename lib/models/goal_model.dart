@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'persisted_icons.dart';
 
 enum GoalStatus { inProgress, completed }
 
@@ -94,7 +95,7 @@ class GoalModel {
       startDate: DateTime.parse(map['start_date'] as String),
       targetDate: DateTime.parse(map['target_date'] as String),
       status: map['status'] == 'completed' ? GoalStatus.completed : GoalStatus.inProgress,
-      icon: IconData(map['icon_code'] as int, fontFamily: 'MaterialIcons'),
+      icon: persistedIconFromCodePoint(map['icon_code'] as int),
       note: map['note'] as String?,
       isPinned: map['is_pinned'] == true,
       artworkNumber: (map['artwork_number'] as num?)?.toInt(),

@@ -404,64 +404,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                   const SizedBox(height: 10),
 
-                  Row(
-                    children: [
-                      Text(service.t('exchange_rate'), style: AppTextStyles.heading),
-                      const SizedBox(width: 6),
-                      Icon(Icons.currency_exchange_rounded, size: 14, color: AppColors.accentDeep),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppColors.accentBg, AppColors.surfaceAlt],
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                      boxShadow: [
-                        BoxShadow(color: AppColors.shadow, blurRadius: 16, offset: const Offset(0, 6)),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Positioned(
-                            right: -12,
-                            bottom: -16,
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: AppColors.accentDeep.withOpacity(0.08),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              children: [
-                                const Text('🇺🇸', style: TextStyle(fontSize: 18)),
-                                const SizedBox(width: 8),
-                                Text('USD', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                                const Spacer(),
-                                Flexible(child: Text('${service.t('buy')} 31.55', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5))),
-                                const SizedBox(width: 12),
-                                Flexible(child: Text('${service.t('sell')} 31.75', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5))),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
 
 
                 ],

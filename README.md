@@ -51,3 +51,21 @@ Database verification (2026-09-07): the existing database ID is `default`
 `(default)`, which does not exist. No new database or billing upgrade is needed
 to target the existing database. DBHelper and both Firebase CLI configurations
 now explicitly select `default`.
+
+## Android release APK
+
+Use the same Flutter SDK as `dart.flutterSdkPath` in VS Code. On this Mac,
+Homebrew's `flutter` is a different version; select the project SDK first:
+
+```sh
+export PATH="/Users/promporn/flutter/flutter/bin:$PATH"
+cd /Users/promporn/Desktop/Budgetmate2/flutter_application_1
+flutter build apk
+```
+
+Output: `build/app/outputs/flutter-apk/app-release.apk`.
+Gradle uses an English/US build-time locale to avoid Buddhist-calendar ZIP
+timestamp errors on Thai macOS. This does not change the app's language.
+Persisted category and goal icons are resolved through `lib/models/persisted_icons.dart`;
+keep old entries and add new picker icons there so release font tree-shaking works.
+The release build currently uses the debug signing key for local installation.

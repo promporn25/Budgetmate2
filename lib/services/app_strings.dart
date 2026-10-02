@@ -39,9 +39,6 @@ class AppStrings {
     'total_expense': 'รายจ่ายรวม',
     'net_balance': 'คงเหลือสุทธิ',
     'total_expenses_6m': 'Total Expenses (6 เดือนล่าสุด)',
-    'exchange_rate': 'อัตราแลกเปลี่ยน',
-    'buy': 'ซื้อ',
-    'sell': 'ขาย',
 
     // ---------------- History ----------------
     'history': 'ประวัติ',
@@ -281,9 +278,6 @@ class AppStrings {
     'total_expense': 'Total Expense',
     'net_balance': 'Net Balance',
     'total_expenses_6m': 'Total Expenses (Last 6 Months)',
-    'exchange_rate': 'Exchange Rate',
-    'buy': 'Buy',
-    'sell': 'Sell',
 
     'history': 'History',
     'filter_all': 'All',

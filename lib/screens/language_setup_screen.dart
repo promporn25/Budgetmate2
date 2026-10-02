@@ -7,7 +7,7 @@ import 'login_screen.dart';
 import '../services/app_strings.dart';
 
 const List<String> _languages = ['ไทย', 'English'];
-const List<String> _currencies = ['THB', 'USD', 'EUR', 'JPY', 'GBP'];
+const List<String> _currencies = ['THB'];
 
 /// หน้า "My wallet" (3.4.2) - ตั้งค่าภาษาและสกุลเงินเริ่มต้นของแอป
 class LanguageSetupScreen extends StatefulWidget {

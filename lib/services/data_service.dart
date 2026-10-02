@@ -57,11 +57,8 @@ class DataService extends ChangeNotifier {
     } else {
       await _db.update('users', {
         'currency': currency, 'ledger_currency': user.ledgerCurrency,
-        'exchange_rate': 1, 'exchange_rate_date': null,
       }, 'id = ?', [user.id]);
       user.currency = currency;
-      user.exchangeRate = 1;
-      user.exchangeRateDate = null;
     }
     notifyListeners();
   }

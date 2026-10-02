@@ -1,5 +1,6 @@
 import 'package:budgetmate/screens/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'persisted_icons.dart';
 import '../widgets/pastel_artwork.dart';
 
 /// ประเภทของหมวดหมู่ สอดคล้องกับ Entity Category (category_type)
@@ -60,7 +61,7 @@ class CategoryModel {
       name: map['name'] as String,
       type: map['type'] == 'income' ? CategoryType.income : CategoryType.expense,
       // หมายเหตุ: ไอคอนมาตรฐานของ Icons.* ใช้ fontFamily 'MaterialIcons'
-      icon: IconData(map['icon_code'] as int, fontFamily: 'MaterialIcons'),
+      icon: persistedIconFromCodePoint(map['icon_code'] as int),
       description: map['description'] as String?,
       imagePath: map['image_path'] as String?,
       artworkNumber: (map['artwork_number'] as num?)?.toInt(),
